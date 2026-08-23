@@ -365,6 +365,14 @@ export async function destroyScenarioFixtures(
     const auditTargets = [
       ...bookingIds,
       ...ids,
+      // ⛔ AND THE SERIES TEMPLATES. `recurring_series_created` /
+      // `recurring_series_cancelled` write `target_type:
+      // "recurring_booking_templates"` and `target_id: <template id>`.
+      // ⚠️ Six of these survived scenario B5's runs past a teardown that
+      // reported success — the third distinct audit-keying this run has had to
+      // learn. ⛔ The rule: an audit row is keyed on the thing the ACTION acted
+      // on, which is often NOT the booking.
+      ...templateIds,
       ...((assignmentRows ?? []) as { id: string }[]).map((r) => r.id),
       ...((participantRows ?? []) as { id: string }[]).map((r) => r.id),
     ];
@@ -516,19 +524,20 @@ export function reportsForDay(date: string) {
 export async function readBooking(db: SupabaseClient, id: string) {
   const { data, error } = await db
     .from("bookings")
-    .select(
-      // ⛔ KEEP THIS LIST COMPLETE. A column that is not selected comes back
-      // `undefined`, and an assertion written as `Number(x ?? 0)` then reads it
-      // as 0 and blames the app. That happened to A5's duration check.
-      "id, status, assignment_status, payment_status, payment_method, amount_paid, amount_due, " +
-        "paid_at, travel_fee, total_price, total_duration_mins, booking_source, client_id, " +
-        "contact_email, contact_full_name, booking_date, start_time, end_time, group_booking, " +
-        // ⚠️ Added after this exact trap bit TWICE: A5 read a missing
-        // `total_duration_mins` as 0, and A2 read a missing
-        // `customer_cancelled_at` as null and nearly reported that the clinic
-        // is never told a customer cancelled.
-        "customer_cancelled_at, customer_cancellation_note, reschedule_status, cancelled_at",
-    )
+    // ⛔ SELECT EVERYTHING, DELIBERATELY.
+    //
+    // ⚠️ A hand-maintained column list bit this run THREE separate times, and
+    // every time it failed in the REASSURING-LOOKING direction — a column that
+    // is not selected comes back `undefined`, and an assertion written as
+    // `Number(x ?? 0)` or `x ?? null` reads that as 0 / null and blames the app:
+    //   - A5 read a missing `total_duration_mins` as 0 minutes;
+    //   - A2 read a missing `customer_cancelled_at` as null and nearly reported
+    //     that the clinic is never told a customer cancelled;
+    //   - B1 read a missing `reschedule_preferred_date` as "".
+    // ⛔ The list is the bug. Take the whole row and let the assertions decide
+    // what matters. This is a service-role read in a test — there is nothing to
+    // save by narrowing it.
+    .select("*")
     .eq("id", id)
     .single();
   if (error || !data) throw new Error(`could not read booking ${id}: ${error?.message}`);
@@ -834,4 +843,75 @@ export async function expectOwnerNeverAssigned(db: SupabaseClient, bookingId: st
       `Their staff_profiles.email is ${REAL_OWNER_INBOX}, so every later status change on this ` +
       `booking mails the real business inbox.`,
   ).toHaveLength(0);
+}
+
+/**
+ * ⛔ Mint a customer manage link the way `ensureBookingManageUrl` does.
+ *
+ * `bookings.manage_token_hash` stores ONLY a sha256 of the token. The plaintext
+ * is never persisted — not on the booking, and not in `email_delivery_events`
+ * either, because an immediate send records delivery metadata WITHOUT
+ * `html_payload`. ⛔ So a test genuinely cannot recover the customer's real
+ * link, and must mint its own. The single-live-token model means the newest
+ * token is the only valid one anyway, so this IS the customer's link.
+ */
+export async function mintManageUrl(
+  db: SupabaseClient,
+  bookingId: string,
+  bookingDate: string,
+): Promise<string> {
+  const { createHash, randomUUID } = await import("node:crypto");
+  const token = randomUUID();
+  const { error } = await db
+    .from("bookings")
+    .update({
+      manage_token_hash: createHash("sha256").update(token).digest("hex"),
+      manage_token_expires_at: new Date(`${bookingDate}T23:59:59.000Z`).toISOString(),
+    })
+    .eq("id", bookingId);
+  if (error) throw new Error(`could not mint a manage token: ${error.message}`);
+  return `/booking/manage?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * The customer asks to move their appointment, from their own manage page.
+ *
+ * ⛔ COSTS ONE REAL MESSAGE TO THE BUSINESS INBOX —
+ * `sendBookingRescheduleRequestEmails` goes through
+ * `resolveBusinessNotificationRecipients`, and a customer-initiated request has
+ * no actor to exclude the Owner with.
+ */
+export async function requestRescheduleAsCustomer(
+  page: Page,
+  manageUrl: string,
+  preferred: { date: string; time: string; note?: string },
+) {
+  await page.goto(manageUrl, { waitUntil: "domcontentloaded" });
+
+  const dateField = page.getByLabel(/Preferred date/i);
+  await expect(
+    dateField,
+    "⛔ a customer with a live booking must be able to ask to move it",
+  ).toBeVisible({ timeout: 20_000 });
+
+  await dateField.fill(preferred.date);
+  await page.getByLabel(/Preferred time/i).fill(preferred.time);
+  if (preferred.note) {
+    // ⛔ Three forms on this page share a `note` textarea (add-a-note, cancel,
+    // reschedule). Scope to the one inside the reschedule form, or the note
+    // lands on a different action entirely.
+    await page
+      .locator("form")
+      .filter({ has: page.getByRole("button", { name: /^Send request$/ }) })
+      .locator("textarea")
+      .fill(preferred.note);
+  }
+
+  const answered = page.waitForResponse(
+    (r) => r.request().method() === "POST" && Boolean(r.request().headers()["next-action"]),
+    { timeout: 60_000 },
+  );
+  await page.getByRole("button", { name: /^Send request$/ }).click();
+  await answered;
+  await page.waitForTimeout(2_500);
 }
