@@ -459,6 +459,27 @@ function quoteOrValue(value: string) {
   return `"${value.replace(/"/g, '\\"')}"`;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * \u26d4 `email_delivery_events.id` is a `uuid` column, and Postgres has NO
+ * `ILIKE` operator for `uuid`. Sending `id.ilike.<anything>` makes the database
+ * reject the ENTIRE `or(...)`, taking the useful arms down with it:
+ *
+ *     operator does not exist: uuid ~~* unknown
+ *
+ * \u26a0\ufe0f That is not theoretical \u2014 it is what this search box used to do on every
+ * single term, so the delivery log answered "Couldn't load email events" for a
+ * recipient address that was sitting in the table. FIND-08-G2-01.
+ *
+ * \u2705 The id arm is therefore included ONLY when the term really is a UUID, and
+ * matched with `eq` rather than `ilike` \u2014 the same shape
+ * `bookings-list-data.ts` has always used for the identical problem.
+ */
+function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 /**
  * Resolves the filter's date-range preset (or a custom from/to pair) to
  * concrete ISO bounds OUTSIDE the cached fetcher — same pattern as
@@ -556,14 +577,17 @@ function applyDeliveryPredicates<Q>(
   if (filters.delivery_status) next = next.eq("delivery_status", filters.delivery_status);
   if (filters.recipient_role) next = next.eq("recipient_role", filters.recipient_role);
   if (filters.q) {
-    const needle = quoteOrValue(`%${escapeLike(filters.q)}%`);
-    next = next.or(
-      [
-        `recipient_email.ilike.${needle}`,
-        `provider_message_id.ilike.${needle}`,
-        `id.ilike.${needle}`,
-      ].join(",")
-    );
+    const term = filters.q.trim();
+    const needle = quoteOrValue(`%${escapeLike(term)}%`);
+    // \u26d4 Both of these are `text` columns, so ILIKE is valid on them.
+    const arms = [
+      `recipient_email.ilike.${needle}`,
+      `provider_message_id.ilike.${needle}`,
+    ];
+    // \u26d4 The uuid column joins in only when the term could actually BE one,
+    // and by equality. See `isUuid` above for what this used to cost.
+    if (isUuid(term)) arms.push(`id.eq.${term}`);
+    next = next.or(arms.join(","));
   }
   if (fromIso) next = next.gte("created_at", fromIso);
   if (toIso) next = next.lte("created_at", toIso);

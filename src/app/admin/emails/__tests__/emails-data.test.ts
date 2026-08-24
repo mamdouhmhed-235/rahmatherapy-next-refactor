@@ -296,14 +296,116 @@ describe("getFilteredDeliveryEvents q-filter or() string", () => {
     });
 
     const needle = `"%Smith, John (Jr.)%"`;
+    // ⛔ NO `id.ilike` ARM. `id` is a uuid column and Postgres has no ILIKE
+    // for uuid, so including it made the database reject the whole `or(...)`
+    // and the search box answered "Couldn't load email events" for EVERY term
+    // — including a recipient address that was sitting in the table.
+    //
+    // ⚠️ THIS TEST USED TO ASSERT THE BROKEN STRING, AND PASSED. It mocks the
+    // query chain, so the database never got to reject it: it proved the filter
+    // was BUILT as written and said nothing about whether it could RUN. That is
+    // why a 100%-broken feature shipped with a green test. FIND-08-G2-01.
     expect(orCalls).toEqual([
       [
         `recipient_email.ilike.${needle}`,
         `provider_message_id.ilike.${needle}`,
-        `id.ilike.${needle}`,
       ].join(","),
     ]);
   });
+
+  it("matches the id column ONLY when the term is a uuid, and by equality", async () => {
+    const orCalls: string[] = [];
+    const chain: {
+      select: () => typeof chain;
+      order: () => typeof chain;
+      or: (filters: string) => typeof chain;
+      gte: () => typeof chain;
+      lte: () => typeof chain;
+      range: () => typeof chain;
+      returns: () => Promise<{ data: unknown[]; error: null }>;
+    } = {
+      select: () => chain,
+      order: () => chain,
+      or: (filters) => {
+        orCalls.push(filters);
+        return chain;
+      },
+      gte: () => chain,
+      lte: () => chain,
+      range: () => chain,
+      returns: async () => ({ data: [], error: null }),
+    };
+    createSupabaseAdminClient.mockImplementation(() => ({ from: () => chain }));
+
+    const uuid = "0b7f1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d";
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "last_30_days", q: uuid },
+    });
+
+    // ✅ A real uuid IS worth searching by — pasting an event id from a
+    // support thread should find it — but by `eq`, which uuid supports.
+    const needle = `"%${uuid}%"`;
+    expect(orCalls).toEqual([
+      [
+        `recipient_email.ilike.${needle}`,
+        `provider_message_id.ilike.${needle}`,
+        `id.eq.${uuid}`,
+      ].join(","),
+    ]);
+  });
+
+  it("never sends an ILIKE against the uuid id column, whatever the term", async () => {
+    // ⛔ THE REGRESSION GUARD, written against the SHAPE of the old bug
+    // rather than one example of it: any future edit that reintroduces
+    // `id.ilike` fails here no matter what the search term looks like.
+    for (const term of [
+      "someone@example.test",
+      "abc",
+      "Smith, John (Jr.)",
+      "0b7f1c2d-3e4f-4a5b-8c9d-0e1f2a3b4c5d",
+    ]) {
+      const orCalls: string[] = [];
+      const chain: {
+        select: () => typeof chain;
+        order: () => typeof chain;
+        or: (filters: string) => typeof chain;
+        gte: () => typeof chain;
+        lte: () => typeof chain;
+        range: () => typeof chain;
+        returns: () => Promise<{ data: unknown[]; error: null }>;
+      } = {
+        select: () => chain,
+        order: () => chain,
+        or: (filters) => {
+          orCalls.push(filters);
+          return chain;
+        },
+        gte: () => chain,
+        lte: () => chain,
+        range: () => chain,
+        returns: async () => ({ data: [], error: null }),
+      };
+      createSupabaseAdminClient.mockImplementation(() => ({ from: () => chain }));
+
+      await getFilteredDeliveryEvents({
+        canSeeDelivery: true,
+        filters: { range: "last_30_days", q: term },
+      });
+
+      // ⚠️ SPLIT ON ARM BOUNDARIES, not a substring search. `.not.toContain(
+      // "id.ilike")` looks right and is useless here: `provider_message_id
+      // .ilike` ENDS WITH "id.ilike", so that assertion fails on correct code
+      // and would equally have passed on a subtly wrong arm. The column being
+      // guarded is `id` exactly.
+      const arms = orCalls.flatMap((call) => call.split(","));
+      expect(
+        arms.filter((arm) => arm.startsWith("id.ilike")),
+        `searching "${term}" must not ILIKE the uuid id column. Arms: ${JSON.stringify(arms)}`,
+      ).toEqual([]);
+    }
+  });
+
 });
 
 // C-16 Phase D Step 9 — the date-bounds resolution used to read `Date.now()`
