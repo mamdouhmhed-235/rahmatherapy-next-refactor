@@ -11,9 +11,13 @@
 //
 // ── ⛔ WHY THIS SCENARIO SENDS NOTHING ───────────────────────────────────
 //
-// The allowance is still exhausted, so a real send cannot be used as the
-// trigger. ⚠️ That splits the question honestly into two halves, and it is worth
-// being precise about which half is proved how:
+// This file was written while the daily allowance was exhausted, so a real send
+// could not be used as the trigger. ⚠️ It is kept that way ON PURPOSE even now
+// the allowance has reset: a scenario about FAILED delivery should not depend on
+// the ability to send, or it becomes unrunnable exactly when it matters most.
+//
+// That splits the question honestly into two halves, and it is worth being
+// precise about which half is proved how:
 //
 //   1. IS A FAILURE RECORDED?  — verified by READING `recordEmailDeliveryEvent`
 //      in `src/lib/email/notifications.ts`. On failure it writes an
