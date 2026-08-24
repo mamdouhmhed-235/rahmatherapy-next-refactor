@@ -1,20 +1,25 @@
 // ⛔ GATE 08 — P3, FAMILY G, SCENARIO G2: "I NEVER GOT IT."
 //
-// ⚠️ THIS SCENARIO FOUND A REAL DEFECT ON THE WAY TO PASSING — FIND-08-G2-01.
+// ⚠️ THIS SCENARIO FOUND A REAL DEFECT ON THE WAY TO PASSING — FIND-08-G2-01,
+// SINCE FIXED on the Owner's instruction (2026-08-24).
 //
 // The obvious way to find a customer's message is the SEARCH BOX on
-// `/admin/emails`. ⛔ It never works: every search returns "Couldn't load email
-// events". `applyDeliveryPredicates` puts `id.ilike.<term>` in the same `or()`
-// as `recipient_email.ilike.<term>`, and `id` is a UUID column, so Postgres
-// rejects the whole filter with `operator does not exist: uuid ~~* unknown`.
+// `/admin/emails`. ⛔ It never worked: every search returned "Couldn't load
+// email events", because `applyDeliveryPredicates` put `id.ilike.<term>` in the
+// same `or()` as `recipient_email.ilike.<term>` and `id` is a uuid column, so
+// Postgres rejected the whole filter.
 //
-// ⚠️ A GREEN UNIT TEST PINS THAT BROKEN FILTER (`emails-data.test.ts:290`). It
-// mocks the query chain and asserts the STRING, so the database never gets to
-// reject it. That is why a 100%-broken feature has a passing test.
+// ⚠️ AND A GREEN UNIT TEST PINNED THAT BROKEN FILTER. It mocked the query chain
+// and asserted the STRING, so the database never got to reject it — which is how
+// a 100%-broken feature shipped with a passing test.
 //
-// ✅ So this scenario filters by DATE AND EVENT TYPE instead, which works. ⛔ The
-// workaround is not a preference — it is here because the better route is
-// broken, and it must not be quietly normalised.
+// ✅ Both are now fixed, and `e2e/scenario-g4b-email-search.spec.ts` proves the
+// search in a browser against the real database.
+//
+// ⛔ THIS FILE STILL FILTERS BY DATE AND EVENT TYPE, DELIBERATELY. Two scenarios
+// should not fail for one reason: if the search ever regresses, the file that
+// exists to test the search should go red, and this one — about resending —
+// should not.
 //
 //   ⛔ The Owner's question: "Can front desk fix a missing email without
 //    re-booking anything?"
