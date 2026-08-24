@@ -609,6 +609,7 @@ export async function emailEvents(db: SupabaseClient, bookingId: string) {
     .eq("booking_id", bookingId);
   return (data ?? []) as {
     id: string;
+    created_at: string;
     event_type: string;
     recipient_email: string | null;
     recipient_role: string | null;

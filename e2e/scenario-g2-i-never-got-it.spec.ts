@@ -1,21 +1,20 @@
 // ⛔ GATE 08 — P3, FAMILY G, SCENARIO G2: "I NEVER GOT IT."
 //
-// ⛔⛔ STATUS: WRITTEN AND BLOCKED. THIS SPEC HAS NEVER BEEN SEEN GREEN. ⛔⛔
+// ⚠️ THIS SCENARIO FOUND A REAL DEFECT ON THE WAY TO PASSING — FIND-08-G2-01.
 //
-// It typechecks and its logic has been reviewed, but it CANNOT run until the
-// Resend daily allowance resets. Attempted 2026-08-24; step 1 failed at the
-// first send with the provider's own words:
+// The obvious way to find a customer's message is the SEARCH BOX on
+// `/admin/emails`. ⛔ It never works: every search returns "Couldn't load email
+// events". `applyDeliveryPredicates` puts `id.ilike.<term>` in the same `or()`
+// as `recipient_email.ilike.<term>`, and `id` is a UUID column, so Postgres
+// rejects the whole filter with `operator does not exist: uuid ~~* unknown`.
 //
-//     "You have reached your daily email sending quota."
+// ⚠️ A GREEN UNIT TEST PINS THAT BROKEN FILTER (`emails-data.test.ts:290`). It
+// mocks the query chain and asserts the STRING, so the database never gets to
+// reject it. That is why a 100%-broken feature has a passing test.
 //
-// ⚠️ DO NOT RECORD THIS SCENARIO AS PASSING, and do not treat the absence of a
-// failure as a pass. ✅ The step-1 guard is doing exactly what it was built for:
-// failing LOUDLY at the first message rather than letting every later assertion
-// succeed against mail that never left.
-//
-// ⛔ TO FINISH IT: wait for the allowance (D-053, Owner-owned), then run
-//     E2E_BASE_URL=http://localhost:3000 E2E_ALLOW_PRODUCTION_DB=1 //       node --env-file=.env node_modules/@playwright/test/cli.js //       test e2e/scenario-g2-i-never-got-it.spec.ts --project=chromium --workers=1
-//
+// ✅ So this scenario filters by DATE AND EVENT TYPE instead, which works. ⛔ The
+// workaround is not a preference — it is here because the better route is
+// broken, and it must not be quietly normalised.
 //
 //   ⛔ The Owner's question: "Can front desk fix a missing email without
 //    re-booking anything?"
@@ -53,9 +52,25 @@
 // sends the customer confirmation plus the business alerts, and the resend fans
 // out the same way, so budget roughly six messages. ⚠️ Some reach the real
 // business inbox, which the Owner has accepted as unavoidable for booking-shaped
-// scenarios. The daily allowance was exhausted yesterday (D-053) and reset
-// overnight; step 2 asserts the resend was not refused, so a still-exhausted
-// allowance fails loudly here rather than silently poisoning later families.
+// scenarios. ✅ The allowance HAS reset — step 1 sent three real messages, one to
+// the customer, none refused. ⛔ The guard stays: step 1 asserts the FIRST
+// message actually left, so a future exhausted allowance fails loudly here
+// rather than silently poisoning every family that follows.
+//
+// ── ✅ A PROTECTION FOUND BY TRIPPING OVER IT ─────────────────────
+//
+// The first working version of this scenario clicked Resend about a minute
+// after the booking, and NOTHING WAS SENT. ⚠️ That looked like a broken button.
+//
+// ✅ It is a 60-second rate limiter (`RESEND_RATE_LIMIT_SECONDS`), and it is a
+// good thing: it stops an anxious customer on the phone being sent five copies
+// of the same message while front desk clicks again. Step 2 now proves BOTH
+// halves — that a too-soon resend is refused, and that the real one goes through
+// once the window passes.
+//
+// ⛔ The wait is computed from the ORIGINAL SEND'S OWN TIMESTAMP, not a fixed
+// sleep, so the test cannot pass by accident on a slow machine where the window
+// had already elapsed.
 //
 // ── ⛔ WHAT MAKES THIS MORE THAN "THE BUTTON WORKS" ──────────────────────
 //
@@ -67,7 +82,9 @@
 import { expect, test } from "@playwright/test";
 import {
   destroyScenarioFixtures,
+  emailEvents,
   gotoAdmin,
+  isoDaysFromToday,
   pageAs,
   readBooking,
   RUN_TAG,
@@ -81,6 +98,8 @@ import { hasBaseUrl } from "./helpers";
 const clientIds: string[] = [];
 let bookingId = "";
 let chosenDay = "";
+let originalDate = "";
+let originalTime = "";
 let customerEmail = "";
 let originalCount = 0;
 let originalIds: string[] = [];
@@ -118,6 +137,14 @@ test.describe('G2 — "I never got it": can front desk resend without re-booking
     clientIds.push(booking.client_id as string);
     customerEmail = email;
 
+    // ⛔ THE ISO DATE, not the label. `chosenDay` is the human string the
+    // calendar showed ("Tuesday, August 25th, 2026"); `booking_date` is
+    // "2026-08-25". Comparing the two failed a run and looked for a moment like
+    // the resend had moved the visit. It had not — the test was reading the
+    // wrong field.
+    originalDate = String(booking.booking_date);
+    originalTime = String(booking.start_time).slice(0, 5);
+
     // ⛔ The confirmation must genuinely have been SENT, not merely intended.
     // Everything below is about resending a message that exists; if none was
     // ever sent, this scenario is testing nothing.
@@ -144,17 +171,43 @@ test.describe('G2 — "I never got it": can front desk resend without re-booking
   test("step 2 — ✅ the coordinator finds it and resends, and it really goes", async ({
     browser,
   }) => {
-    test.setTimeout(180_000);
+    // ⛔ Generous on purpose: this step deliberately waits out a 60-second rate
+    // limiter, so a tight timeout would fail it for the one reason that is not
+    // a fault.
+    test.setTimeout(300_000);
     expect(bookingId, "step 1 must have run").not.toBe("");
     const db = serviceClient();
 
     const { context, page } = await pageAs(browser, "coordinator");
 
-    // ✅ No cache trickery needed: the booking above was made through the app,
-    // so the delivery log was invalidated the way it is in real use.
+    // ⚠️ BY DATE AND TYPE, NOT BY SEARCH — see FIND-08-G2-01. Searching for the
+    // customer's address is the natural way to do this and it is broken; this
+    // route is the workaround, not the preference.
+    //
+    // ⛔ AND THE DATE WINDOW IS MADE UNIQUE PER RUN, ON PURPOSE.
+    // The delivery log is cached per viewer AND per filter combination. A fixed
+    // URL is therefore warm from the PREVIOUS run — whose fixture has since been
+    // deleted — so the page can honestly render a list that no longer contains
+    // anything. That is not a defect in the app: a real failure or send happens
+    // inside a server action which clears the entry; only a test seeding its own
+    // world from the outside sees the stale copy.
+    //
+    // ✅ `to` is a genuine filter that flows into both the query and the cache
+    // key, so pushing it a run-specific number of days into the future keeps
+    // today's row in range while guaranteeing a COLD entry every time.
+    //
+    // ⛔ `range=custom` IS REQUIRED and its absence cost a run. `resolveDelivery-
+    // DateBounds` only reads `from`/`to` when the range is literally "custom";
+    // without it both are ignored, the URL collapses back to the default window,
+    // and the "unique" entry is the same warm one as last time.
+    // ⚠️ Derived from the CLOCK, not the process id. An earlier version used
+    // `Number(RUN_TAG) % 60`, which collided with a previous run's value and
+    // served its warm — and by then empty — cache entry. Uniqueness has to be
+    // genuinely unique, not merely "probably different".
+    const uniqueTo = isoDaysFromToday(30 + (Date.now() % 400));
     await gotoAdmin(
       page,
-      `/admin/emails/?q=${encodeURIComponent(customerEmail)}`,
+      `/admin/emails/?event_type=booking_confirmation&range=custom&from=${isoDaysFromToday(-1)}&to=${uniqueTo}`,
       "the delivery log",
     );
     await page.waitForTimeout(3_000);
@@ -167,18 +220,78 @@ test.describe('G2 — "I never got it": can front desk resend without re-booking
       `⛔ front desk cannot find the customer's message in the delivery log, so there is nothing to resend. It said: "${shown.slice(0, 400)}"`,
     ).toBe(true);
 
-    // ⛔ Addressed by RECIPIENT, so it cannot resend somebody else's message.
-    const resend = page.getByRole("button", {
-      name: new RegExp(`Resend .* to ${customerEmail.replace(/[+.]/g, "\\$&")}`),
-    });
+    // ⛔ ADDRESSED BY RECIPIENT, so it cannot resend somebody else's message —
+    // which matters here: this booking also generated business alerts, and
+    // resending one of those would mail the clinic's real inbox for no reason.
+    //
+    // ⚠️ The names are ENUMERATED rather than matched blind. A regex that misses
+    // reports "no resend button" when the truth may be "a label I guessed
+    // wrong", and those two need telling apart.
+    const allResend = page.getByRole("button", { name: /^Resend/ });
     await expect(
-      resend,
-      "⛔ front desk must be OFFERED a resend on a message the customer says never arrived",
+      allResend.first(),
+      "⛔ front desk must be offered a resend on SOMETHING here, or the log is not showing actionable rows at all",
     ).toBeVisible({ timeout: 30_000 });
 
-    await resend.first().click();
-    await page.waitForTimeout(1_000);
+    const labels: string[] = [];
+    const howMany = await allResend.count();
+    for (let i = 0; i < howMany; i += 1) {
+      labels.push((await allResend.nth(i).getAttribute("aria-label")) ?? "(unnamed)");
+    }
+    console.log(`[G2] resend buttons offered: ${JSON.stringify(labels)}`);
 
+    const mine = labels.findIndex((l) => l.includes(customerEmail));
+    expect(
+      mine,
+      `⛔ NO RESEND CONTROL FOR THIS CUSTOMER'S MESSAGE. Front desk can SEE the message but cannot act on it. Buttons offered: ${JSON.stringify(labels)}`,
+    ).toBeGreaterThanOrEqual(0);
+
+    // ⛔ FIRST CLICK, DELIBERATELY TOO SOON. The confirmation went out moments
+    // ago, so this one must be REFUSED — that is the protection, not a fault.
+    await allResend.nth(mine).click();
+    await page.waitForTimeout(1_000);
+    const confirmTooSoon = page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Resend", exact: true });
+    if ((await confirmTooSoon.count()) > 0) await confirmTooSoon.first().click();
+    await page.waitForTimeout(4_000);
+
+    const afterTooSoon = await emailEvents(db, bookingId);
+    const blocked = afterTooSoon.length === originalCount;
+    console.log(
+      `[G2] a resend inside the 60s window was ${blocked ? "REFUSED, as it should be" : "ALLOWED"}.`,
+    );
+    expect(
+      afterTooSoon.length,
+      "⛔ A CUSTOMER COULD BE SENT REPEATED COPIES. The 60-second limiter exists so that clicking again while somebody is on the phone does not post them five of the same message.",
+    ).toBe(originalCount);
+
+    // ⛔ NOW WAIT OUT THE WINDOW, measured from the original send itself rather
+    // than a fixed sleep, so this cannot pass by luck on a slow machine.
+    const sentAt = new Date(
+      (afterTooSoon.find((e) => e.recipient_email === customerEmail) ?? afterTooSoon[0])
+        .created_at as string,
+    ).getTime();
+    const waitMs = Math.max(0, 61_000 - (Date.now() - sentAt)) + 4_000;
+    await page.waitForTimeout(waitMs);
+
+    // ✅ AND THE REAL RESEND.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(2_500);
+    const again = page.getByRole("button", { name: /^Resend/ });
+    const againLabels: string[] = [];
+    const againCount = await again.count();
+    for (let i = 0; i < againCount; i += 1) {
+      againLabels.push((await again.nth(i).getAttribute("aria-label")) ?? "");
+    }
+    const mineAgain = againLabels.findIndex((l) => l.includes(customerEmail));
+    expect(
+      mineAgain,
+      `⛔ the customer's message vanished from the log after a reload. Buttons: ${JSON.stringify(againLabels)}`,
+    ).toBeGreaterThanOrEqual(0);
+
+    await again.nth(mineAgain).click();
+    await page.waitForTimeout(1_000);
     const confirm = page
       .getByRole("dialog")
       .getByRole("button", { name: "Resend", exact: true });
@@ -227,8 +340,12 @@ test.describe('G2 — "I never got it": can front desk resend without re-booking
     // would be the customer's original complaint made worse.
     expect(
       after.booking_date,
-      "⛔ resending must not move the visit to another day",
-    ).toBe(chosenDay);
+      `⛔ resending must not move the visit to another day. It was ${originalDate}, it is now ${after.booking_date}.`,
+    ).toBe(originalDate);
+    expect(
+      String(after.start_time).slice(0, 5),
+      "⛔ nor to another time",
+    ).toBe(originalTime);
     expect(
       ["pending", "confirmed"].includes(String(after.status)),
       `⛔ resending must not change the booking's status. It is now "${after.status}".`,
