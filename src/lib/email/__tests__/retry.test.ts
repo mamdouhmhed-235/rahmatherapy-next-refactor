@@ -9,7 +9,7 @@
 // "It retried" is easy to get right and cheap to check; "it eventually gave up"
 // is the assertion that protects the Owner.
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   MAX_EMAIL_RETRIES,
   priorAttemptsOf,
