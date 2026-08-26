@@ -29,6 +29,11 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/client";
+import {
+  MAX_EMAIL_RETRIES,
+  priorAttemptsOf,
+  queueEmailRetry,
+} from "@/lib/email/retry";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
 
 // One tick's worth. At the ~1-5 cancellations/day this queue is sized for, the
@@ -172,6 +177,33 @@ export async function POST(request: Request): Promise<Response> {
           delivery_status: "failed",
         },
       }).catch(() => undefined);
+
+      // D-047 — one more try, if it has not had its two.
+      //
+      // ⛔ THE COUNT COMES OFF THE ROW ITSELF (`metadata.retry_attempt`), not
+      // from anything held in memory here. This worker runs every minute and
+      // may not be the same worker that queued the row, so a counter that did
+      // not travel WITH the message would reset on every tick and retry for
+      // ever — which is precisely the failure D-047 warned about.
+      const priorAttempts = priorAttemptsOf(row.metadata);
+      const retry = await queueEmailRetry(supabase, {
+        bookingId: row.booking_id,
+        eventType: row.event_type,
+        recipientEmail: row.to_email ?? row.recipient_email ?? "",
+        recipientRole: row.recipient_role,
+        staffId: row.staff_id ?? null,
+        subject: row.subject ?? "",
+        html: row.html_payload ?? "",
+        text: row.text_payload ?? "",
+        priorAttempts,
+      });
+      // Reported in the worker's log body either way, so "we gave up" is as
+      // visible in Cloudflare's stream as "we tried again".
+      failures.push(
+        retry.queued
+          ? `${row.id}: retry ${retry.attempt} of ${MAX_EMAIL_RETRIES} queued for ${retry.scheduledFor}`
+          : `${row.id}: not retried (${retry.reason})`,
+      );
     }
   }
 

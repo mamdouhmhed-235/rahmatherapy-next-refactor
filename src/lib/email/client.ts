@@ -54,19 +54,55 @@ export function extractEmailAddress(value: string) {
   return (match?.[1] ?? value).trim();
 }
 
+/**
+ * D-047 — how long to wait for the provider before giving up on one send.
+ *
+ * ⛔ There was no timeout at all, which is worse than it sounds: a request that
+ * hangs holds the whole booking action open behind it, so a slow provider stops
+ * looking like a slow email and starts looking like a broken website. Failing at
+ * fifteen seconds turns that into a recorded failure the retry can pick up.
+ */
+const SEND_TIMEOUT_MS = 15_000;
+
 export async function sendEmail(input: SendEmailInput) {
   const resend = getResendClient();
-  const { data, error } = await resend.emails.send({
-    from: getFromEmail(),
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
+
+  // ⚠️ `Promise.race` rather than an abort signal, because the provider SDK does
+  // not accept one. ⛔ That means a timed-out request may still arrive at the
+  // provider — the send is abandoned here, not cancelled there. It is recorded
+  // as a failure either way, and `queueEmailRetry`'s small cap is what bounds
+  // the duplicate that follows from exactly this case.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new EmailDeliveryError(
+            `The email provider did not respond within ${SEND_TIMEOUT_MS / 1000} seconds.`
+          )
+        ),
+      SEND_TIMEOUT_MS
+    );
   });
 
-  if (error) {
-    throw new EmailDeliveryError(error.message);
-  }
+  try {
+    const { data, error } = await Promise.race([
+      resend.emails.send({
+        from: getFromEmail(),
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+      timeout,
+    ]);
 
-  return data;
+    if (error) {
+      throw new EmailDeliveryError(error.message);
+    }
+
+    return data;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }

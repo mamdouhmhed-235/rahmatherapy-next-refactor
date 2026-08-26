@@ -368,7 +368,13 @@ describe("POST /api/cron/scheduled-emails", () => {
       skipped: 0,
       errored: 0,
       total: 2,
-      failures: ["a: Resend 422"],
+      // D-047 — the retry line is part of the body now, and deliberately so:
+      // the worker logs this verbatim, so "we tried again" and "we gave up"
+      // are both visible in Cloudflare's stream rather than only the failure.
+      failures: [
+        "a: Resend 422",
+        expect.stringMatching(/^a: retry 1 of 2 queued for /),
+      ],
     });
     expect(stub.updates()).toEqual([
       {
@@ -393,6 +399,12 @@ describe("POST /api/cron/scheduled-emails", () => {
     ]);
     // ...and the same operational event the immediate-send path records, so the
     // nav failure counter and /admin/operations see it too.
+    //
+    // D-047 — followed by the RETRY ROW. ⛔ Both writes matter and the ORDER
+    // matters: the failure is recorded first and unconditionally, so a retry
+    // that later succeeds still leaves the failed attempt on /admin/emails.
+    // That is what keeps a repeatedly-flaky address distinguishable from a
+    // one-off blip.
     expect(stub.inserts).toEqual([
       {
         table: "operational_events",
@@ -400,6 +412,17 @@ describe("POST /api/cron/scheduled-emails", () => {
           event_type: "failed_email_send",
           severity: "error",
           booking_id: "booking-a",
+        }),
+      },
+      {
+        table: "email_delivery_events",
+        payload: expect.objectContaining({
+          delivery_status: "queued",
+          booking_id: "booking-a",
+          // ⚠️ The count travels ON THE ROW. This worker runs every minute and
+          // may not be the same worker next tick, so a counter held anywhere
+          // else would reset and retry for ever.
+          metadata: expect.objectContaining({ retry_attempt: 1 }),
         }),
       },
     ]);
@@ -426,11 +449,23 @@ describe("POST /api/cron/scheduled-emails", () => {
       failures: [
         "a: Resend 422",
         `a: could not mark failed: ${UPDATE_DENIED.message}`,
+        // ⚠️ THE RETRY IS STILL QUEUED even though the corrective flip failed.
+        // That is the right way round: the send genuinely did not land, so the
+        // customer still needs the message. A retry withheld because a
+        // BOOKKEEPING write failed would punish the customer for a database
+        // problem they have nothing to do with.
+        expect.stringMatching(/^a: retry 1 of 2 queued for /),
       ],
     });
     // The operational event still lands, so /admin/operations sees the failed
-    // send whatever the corrective write did.
-    expect(stub.inserts).toHaveLength(1);
+    // send whatever the corrective write did — and the retry is queued beside
+    // it, because the send genuinely did not land.
+    expect(stub.inserts).toHaveLength(2);
+    expect(stub.inserts[0].table).toBe("operational_events");
+    expect(stub.inserts[1]).toMatchObject({
+      table: "email_delivery_events",
+      payload: expect.objectContaining({ delivery_status: "queued" }),
+    });
   });
 
   it("surfaces a query failure as a 500 without touching any row", async () => {

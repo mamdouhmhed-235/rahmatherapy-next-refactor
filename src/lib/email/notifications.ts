@@ -55,6 +55,7 @@ import {
   type ReviewRequestEmailInput,
 } from "./templates";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
+import { queueEmailRetry } from "./retry";
 
 type ParticipantGender = "male" | "female";
 
@@ -575,6 +576,7 @@ async function sendTrackedEmail(
     }).catch(() => undefined);
     return { status: "accepted" as const };
   } catch (error) {
+    const reason = error instanceof Error ? error.message : "Email failed.";
     await recordEmailDeliveryEvent(supabase, {
       bookingId: input.bookingId,
       eventType: input.eventType,
@@ -582,9 +584,30 @@ async function sendTrackedEmail(
       recipientRole: input.recipientRole,
       deliveryStatus: "failed",
       staffId: input.staffId ?? null,
-      errorMessage: error instanceof Error ? error.message : "Email failed.",
+      errorMessage: reason,
     }).catch(() => undefined);
-    return { status: "failed" as const };
+
+    // D-047 — park it for one more try. ⛔ THE FAILURE IS RECORDED FIRST AND
+    // UNCONDITIONALLY, above: the retry is an ADDITION to the clinic's record,
+    // never a replacement for it. A message that is retried and then succeeds
+    // still leaves the failed attempt visible on /admin/emails, which is how a
+    // repeatedly-flaky address stays distinguishable from a one-off blip.
+    //
+    // ⚠️ `queueEmailRetry` never throws and never retries more than twice — see
+    // its header for why the cap is small on purpose.
+    const retry = await queueEmailRetry(supabase, {
+      bookingId: input.bookingId,
+      eventType: input.eventType,
+      recipientEmail: input.to,
+      recipientRole: input.recipientRole,
+      staffId: input.staffId ?? null,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      priorAttempts: 0,
+    });
+
+    return { status: "failed" as const, retryQueued: retry.queued };
   }
 }
 
