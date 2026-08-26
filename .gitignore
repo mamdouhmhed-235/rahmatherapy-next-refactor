@@ -94,3 +94,6 @@ supabase/.temp/
 # ⛔ Live Supabase session cookies minted for the browser-test role agents.
 # NEVER commit: each file is a working login for one role identity.
 e2e/.auth/
+
+# Agent handoff notes (local only)
+handoff/
