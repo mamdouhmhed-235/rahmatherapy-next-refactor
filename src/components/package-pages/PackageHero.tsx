@@ -51,6 +51,10 @@ export function PackageHero({ page }: { page: PackagePage }) {
             alt={page.heroAlt}
             imageType={page.heroImageType}
             priority
+            // Gate 14, F-14-01: this is the LCP element on all five
+            // `/services/[slug]` pages. `priority` alone left it fetching at
+            // Low; `ServicesHero` already pairs the two for the same reason.
+            fetchPriority="high"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>
