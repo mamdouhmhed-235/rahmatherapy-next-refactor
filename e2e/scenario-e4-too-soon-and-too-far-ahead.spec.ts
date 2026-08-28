@@ -137,6 +137,9 @@ type BookingReply = { status: number; body: Record<string, unknown> };
 test.describe.configure({ mode: "serial" });
 
 test.afterAll(async () => {
+  // ⚠️ MEASURED: the default 60s was not enough once, and a teardown that dies
+  // half-way is how production gets left dirty.
+  test.setTimeout(300_000);
   const db = serviceClient();
   const problems: string[] = [];
 
@@ -162,12 +165,25 @@ test.afterAll(async () => {
     }
   }
 
-  if (clientIds.length > 0) {
-    try {
-      await destroyScenarioFixtures(db, clientIds);
-    } catch (error) {
-      problems.push(error instanceof Error ? error.message : String(error));
-    }
+  // ⛔ UNCONDITIONAL — and this is the whole lesson of this file.
+  //
+  // ⚠️ MEASURED, 2026-08-28: step 4's post was aborted client-side after 90
+  // seconds while the dev server was still compiling the email path. The server
+  // finished the work anyway, so a REAL booking, client, participant, item,
+  // assignment and delivery-event row were created — but the reply never
+  // arrived, so `acceptedBookingId` and `clientIds` stayed EMPTY and the whole
+  // fixture was left sitting in production. It had to be removed by hand.
+  //
+  // ⛔ The old guard here was `if (clientIds.length > 0)`, which is exactly what
+  // let it survive: with nothing captured, the sweep never ran at all.
+  // `destroyScenarioFixtures` ALREADY looks for strays by the run-tagged name
+  // (`ZZTEST-%-<RUN_TAG>`), so calling it unconditionally finds a fixture this
+  // test never learned the id of. ⛔ Never gate it on having captured an id —
+  // the case where you have no id is precisely the case that needs it.
+  try {
+    await destroyScenarioFixtures(db, clientIds);
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
   }
 
   if (problems.length > 0) {
@@ -210,6 +226,19 @@ async function postBooking(opts: {
 }): Promise<BookingReply> {
   const response = await fetch(`${process.env.E2E_BASE_URL}/api/bookings/`, {
     method: "POST",
+    // ⛔ BOUNDED (G3), and VERY generously — 5 minutes.
+    //
+    // ⚠️ MEASURED TWICE on a freshly started dev server. First: the cold
+    // compile of this route alone outran Playwright's whole 60-second step
+    // budget. Then, with the route warm, the ACCEPTED path took over 90 seconds
+    // because it also compiles the email templates and renderer on first use.
+    //
+    // ⛔ AND AN ABORT HERE IS NOT FREE. The server finishes the work regardless,
+    // so a client-side abort on the accepting post leaves a REAL booking behind
+    // whose id this test never learns. That is measured, not theoretical — see
+    // the teardown. The bound stays only so a genuine hang is self-explaining;
+    // it must never be tight enough to fire in normal use.
+    signal: AbortSignal.timeout(300_000),
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       selectedPackageIds: ["hijama-package"],
@@ -255,6 +284,27 @@ async function postBooking(opts: {
   }
 
   return { status: response.status, body };
+}
+
+/**
+ * Force the dev server to compile `/api/bookings/` BEFORE the clock starts on a
+ * step that posts to it.
+ *
+ * ⛔ A GET, deliberately. The route exports only POST, so this answers 405 —
+ * but it still makes Next compile the module, and it never reaches
+ * `checkRateLimit`, which lives inside the POST handler. ⚠️ THAT MATTERS: the
+ * booking limiter allows only 5 posts per 10 minutes and this file needs 3, so
+ * a warm-up that burned one of them would trade one problem for a worse one.
+ */
+async function warmBookingRoute() {
+  try {
+    await fetch(`${process.env.E2E_BASE_URL}/api/bookings/`, {
+      method: "GET",
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    // Never fatal. If this fails the posts below will say so far more clearly.
+  }
 }
 
 /**
@@ -419,6 +469,12 @@ test.describe("E4 — too soon and too far ahead: do the notice period and the b
     expect(lastDay, "step 1 must have run").not.toBe("");
     const db = serviceClient();
 
+    // ⚠️ A cold dev server compiles this route on first contact, which once ate
+    // this step's entire budget. Warmed for free, and the budget raised so a
+    // slow machine reports a real result rather than a bare timeout.
+    test.setTimeout(360_000);
+    await warmBookingRoute();
+
     const { count: bookingsBefore } = await db
       .from("bookings")
       .select("id", { count: "exact", head: true });
@@ -492,6 +548,11 @@ test.describe("E4 — too soon and too far ahead: do the notice period and the b
   test("step 4 — ✅ THE CONTROL THAT COSTS: the last allowed day really is sellable", async () => {
     expect(sellableTime, "step 1 must have run").not.toBe("");
     const db = serviceClient();
+    // ⛔ The accepted path renders and sends three emails before it answers, and
+    // on a cold dev server it compiles the whole email module graph first —
+    // measured at over 90 seconds. Giving up early here does not cancel the
+    // booking, it just loses the receipt.
+    test.setTimeout(360_000);
 
     // ⛔ THE ONE POST IN THIS FILE THAT IS MEANT TO SUCCEED, and the only one
     // that spends anything: three real sends, approved by the Owner. Without
@@ -576,17 +637,20 @@ test.describe("E4 — too soon and too far ahead: do the notice period and the b
     const now = new Date();
     const earliestAllowed = new Date(now.getTime() + noticeHours * 60 * 60 * 1000);
     const offending: string[] = [];
-    let sellableToday = 0;
+    let todayTimes: string[] = [];
+
+    const momentOf = (date: string, time: string) => {
+      const [h, m] = time.split(":").map(Number);
+      const [y, mo, d] = date.split("-").map(Number);
+      return new Date(y, mo - 1, d, h, m, 0, 0);
+    };
 
     for (const offset of [0, 1]) {
       const date = businessDate(offset);
       const times = await offeredTimes(date);
-      if (offset === 0) sellableToday = times.length;
+      if (offset === 0) todayTimes = times;
       for (const time of times) {
-        const [h, m] = time.split(":").map(Number);
-        const [y, mo, d] = date.split("-").map(Number);
-        const moment = new Date(y, mo - 1, d, h, m, 0, 0);
-        if (moment < earliestAllowed) offending.push(`${date} ${time}`);
+        if (momentOf(date, time) < earliestAllowed) offending.push(`${date} ${time}`);
       }
     }
 
@@ -597,11 +661,56 @@ test.describe("E4 — too soon and too far ahead: do the notice period and the b
         `${businessDate(0)} ${hhmm(earliestAllowed)}.`,
     ).toEqual([]);
 
-    noticeReadLayer =
-      sellableToday > 0
-        ? `TIGHT — today still had ${sellableToday} sellable times and none of them was inside the window`
-        : `LOOSE — the clinic was already shut for today (run at ${hhmm(now)}), so the notice had ` +
-          `nothing left to remove and only the back door proved it`;
+    if (todayTimes.length > 0) {
+      // ⛔ AND IT MUST NOT REMOVE MORE THAN IT SHOULD. "Nothing inside the
+      // window" alone would also pass if the notice period were silently
+      // behaving like twelve hours instead of four — the clinic would lose a
+      // whole afternoon of sellable time and nobody would ever report it,
+      // because an absent slot looks exactly like a busy one.
+      //
+      // ⚠️ Only checkable when the clinic is still open today, which is why
+      // this branch exists and why the run reports which one it took.
+      //
+      // The step is MEASURED from the times on offer, never assumed: the first
+      // slot must be the first step boundary at or after `earliestAllowed`, so
+      // the gap between them must be smaller than one step.
+      const stepMins =
+        todayTimes.length > 1
+          ? Math.min(
+              ...todayTimes
+                .slice(1)
+                .map(
+                  (t, i) =>
+                    (momentOf(businessDate(0), t).getTime() -
+                      momentOf(businessDate(0), todayTimes[i]).getTime()) /
+                    60_000,
+                )
+                .filter((gap) => gap > 0),
+            )
+          : 60;
+
+      const firstMoment = momentOf(businessDate(0), todayTimes[0]);
+      const gapMins = (firstMoment.getTime() - earliestAllowed.getTime()) / 60_000;
+
+      expect(
+        gapMins,
+        `⛔ THE NOTICE PERIOD IS REMOVING MORE THAN THE ${noticeHours} HOURS IT SHOULD. It is ` +
+          `${hhmm(now)}, so the first bookable time should be the first slot at or after ` +
+          `${hhmm(earliestAllowed)}; the earliest actually offered is ${todayTimes[0]}, which is ` +
+          `${Math.round(gapMins)} minutes later on a ${stepMins}-minute grid. The clinic would be ` +
+          `losing sellable time it never chose to lose.`,
+      ).toBeLessThan(stepMins);
+
+      noticeReadLayer =
+        `TIGHT — run at ${hhmm(now)} with the clinic still open, so the line was measurable: ` +
+        `the earliest allowed moment is ${hhmm(earliestAllowed)} and the first time on sale is ` +
+        `${todayTimes[0]}, the very next slot on a ${stepMins}-minute grid — nothing inside the ` +
+        `window, and nothing needlessly removed outside it`;
+    } else {
+      noticeReadLayer =
+        `LOOSE — the clinic was already shut for today (run at ${hhmm(now)}), so the notice had ` +
+        `nothing left to remove and only the back door proved it`;
+    }
 
     console.log(
       `\n[E4] COMPLETE. Window: ${lastDay} sells and was BOOKED, ${beyondWindow} is refused by ` +
