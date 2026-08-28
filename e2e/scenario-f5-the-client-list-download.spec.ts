@@ -400,11 +400,124 @@ test.describe("F5 — the client list download: can a therapist take the whole c
     ).toEqual([]);
 
     console.log(
-      `\n[F5] COMPLETE. A therapist CANNOT download the clinic's client list: all ` +
-        `${REPORT_SHAPES.length} export shapes — including an unrecognised one, which falls through ` +
-        `to the most sensitive branch — returned 200 to her, carried her own client, and carried ` +
-        `nothing of the other therapist's client. Counts are narrowed too, and the Owner's own ` +
-        `exports still contain every client.\n`,
+      `[F5] step 4 — the Owner's exports are undamaged: all ${REPORT_SHAPES.length} shapes returned ` +
+        `200 and every client-bearing one contains BOTH clients.`,
+    );
+  });
+
+  test("step 5 — ⛔ WHO CAN SEE THE MONEY: all four roles, not just two", async ({ browser }) => {
+    expect(mine.name, "step 1 must have run").not.toBe("");
+
+    // ⛔ The coverage plan asks this scenario for FOUR roles, and its title is
+    // "who can see the money" — not only "who can see the clients". The four
+    // sit in three genuinely different places, measured from the live grants:
+    //
+    //   Owner   universal scope + export_reports_revenue -> everything
+    //   Admin   universal scope + export_reports_revenue -> everything
+    //   Coord.  universal scope but ⛔ NO EXPORT PERMISSION AT ALL
+    //   Therap. no universal scope, export_reports_own, ⛔ NO REVENUE
+    //
+    // ⚠️ So the coordinator must be REFUSED the download outright, and the
+    // therapist must be allowed the download but shown NO MONEY in it.
+
+    // ── The Admin: trusted like the Owner ────────────────────────────────
+    const admin = await pageAs(browser, "admin");
+    const adminCsv = await exportCsv(admin.context.request, "client_summary");
+    const adminList = await exportCsv(admin.context.request, "booking_list");
+    await admin.context.close();
+
+    expect(adminCsv.status, "⛔ the Admin must be able to export").toBe(200);
+    expect(
+      adminCsv.body.includes(mine.name) && adminCsv.body.includes(theirs.name),
+      `⛔ THE ADMIN CANNOT SEE THE WHOLE CLINIC. They hold view_bookings_all and ` +
+        `view_clients_all, so a narrowed export would be a real loss of function, not safety.`,
+    ).toBe(true);
+    // ⛔ And the Admin holds `export_reports_revenue`, so the money must be
+    // there for them — the same test the therapist FAILS by design below.
+    expect(
+      adminList.body.includes("hidden"),
+      `⛔ THE ADMIN'S MONEY IS BEING WITHHELD. They hold export_reports_revenue, so hiding prices ` +
+        `from them breaks a legitimate job rather than protecting anything.`,
+    ).toBe(false);
+
+    // ── The Booking Coordinator: refused the download ────────────────────
+    const coord = await pageAs(browser, "coordinator");
+
+    // ⛔ THE CONTROL (G2). She holds view_reports_operational, so she can OPEN
+    // the reports screen. Without proving that, a 403 below would be
+    // indistinguishable from an expired session or a broken route.
+    await coord.page.goto("/admin/reports/", { waitUntil: "domcontentloaded" });
+    await coord.page.waitForTimeout(1_500);
+    const signedOut = /\/admin\/login/.test(coord.page.url());
+    const refusedOnScreen =
+      (await coord.page.locator("[data-admin-access-denied]").count()) > 0;
+
+    const coordCsv = await exportCsv(coord.context.request, "client_summary");
+    await coord.context.close();
+
+    expect(signedOut, "⛔ the coordinator must be SIGNED IN, or the refusal below proves nothing").toBe(
+      false,
+    );
+    expect(
+      refusedOnScreen,
+      "⛔ THE CONTROL FAILED. The coordinator cannot even open the reports screen she is entitled " +
+        "to, so a refused download says nothing about the export rule.",
+    ).toBe(false);
+    expect(
+      coordCsv.status,
+      `⛔ THE COORDINATOR CAN DOWNLOAD THE CLINIC'S DATA. She holds no export permission at all — ` +
+        `neither export_reports_own nor export_reports_revenue — so this file should be refused. ` +
+        `It returned ${coordCsv.status} with ${csvRowCount(coordCsv.body)} rows.`,
+    ).toBe(403);
+
+    // ── The therapist: allowed the file, denied the money ────────────────
+    const therapist = await pageAs(browser, "therapist_a");
+    const therapistList = await exportCsv(therapist.context.request, "booking_list");
+    await therapist.context.close();
+
+    const owner = await pageAs(browser, "owner");
+    const ownerList = await exportCsv(owner.context.request, "booking_list");
+    await owner.context.close();
+
+    // ⛔ Read the COLUMN, never a substring of the file (G20). `booking_list`
+    // writes `total_price: "hidden"` when the caller has no revenue permission.
+    const priceColumn = (csv: string) => {
+      const lines = csv.split("\n").filter((l) => l.trim() !== "");
+      if (lines.length < 2) return [] as string[];
+      const headers = lines[0].split(",");
+      const at = headers.indexOf("total_price");
+      if (at === -1) return [] as string[];
+      return lines.slice(1).map((line) => line.split(",")[at] ?? "");
+    };
+
+    const therapistPrices = priceColumn(therapistList.body);
+    const ownerPrices = priceColumn(ownerList.body);
+
+    expect(
+      therapistPrices.length,
+      "⛔ the therapist's export has no rows, so the money question cannot be asked of it",
+    ).toBeGreaterThan(0);
+    expect(
+      therapistPrices.every((value) => value === "hidden"),
+      `⛔ A THERAPIST CAN SEE THE CLINIC'S MONEY. She holds no revenue permission, so every price ` +
+        `in her export should read "hidden". It said: ${therapistPrices.join(", ")}`,
+    ).toBe(true);
+
+    // ⛔ And the control again: the money is genuinely there for someone who
+    // may see it, so "hidden" means withheld rather than absent.
+    expect(
+      ownerPrices.some((value) => value !== "hidden" && Number(value) > 0),
+      `⛔ THE CONTROL FAILED. The Owner's own export shows no money either, so "hidden" above ` +
+        `proves nothing. It said: ${ownerPrices.join(", ")}`,
+    ).toBe(true);
+
+    console.log(
+      `\n[F5] COMPLETE. Four roles, three different answers.\n` +
+        `  • Therapist — allowed the file, but ONLY her own client, and every price reads ` +
+        `"hidden". All ${REPORT_SHAPES.length} shapes checked, including an unrecognised one that ` +
+        `falls through to the most sensitive branch.\n` +
+        `  • Coordinator — REFUSED the download (403) while still able to open the reports screen.\n` +
+        `  • Admin and Owner — the whole clinic, with the money, undamaged by the narrowing.\n`,
     );
   });
 });
