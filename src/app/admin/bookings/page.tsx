@@ -33,10 +33,12 @@ import { getTodayIsoDate } from "./_helpers";
 import { formatDate } from "./format";
 import {
   bookingListFiltersFromQuery,
+  countScopedAssignments,
   getBookingViewCounts,
   getBookingsChromeData,
   getBookingsListPage,
   visibleBookingViews,
+  SCOPED_CANDIDATE_ID_CAP_DISCLOSED,
   type BookingsListPage,
 } from "./bookings-list-data";
 import type { BookingRecord } from "./types";
@@ -496,6 +498,25 @@ async function BookingListSection({
   });
   const visibleBookings = listWindow.rows;
 
+  // ⛔ F-SCALE-05 — the therapist branch pages an ALREADY-CAPPED array, so
+  // `listWindow.total` is the size of the truncated set rather than the truth,
+  // and the pager renders it as an authoritative total ("Showing 101–125 of
+  // 125" for a therapist who has 130). The cap itself is a deliberate design
+  // choice and stays; what was wrong is that the screen asserted a number it
+  // had no right to. So fetch the real one and say it.
+  //
+  // ⚠️ Counted WITHOUT the request's filters, so this is the reader's lifetime
+  // total. The sentence is therefore worded as a standing fact about them and
+  // the list — true on a filtered view as well as an unfiltered one — rather
+  // than a claim that THIS view was truncated, which would be a false alarm
+  // whenever a date filter had already reached past the cap.
+  const scopedAssignmentTotal = canViewAll
+    ? null
+    : await countScopedAssignments(profile);
+  const scopedCapBinds =
+    scopedAssignmentTotal !== null &&
+    scopedAssignmentTotal > SCOPED_CANDIDATE_ID_CAP_DISCLOSED;
+
   const showGrouping =
     new Set(visibleBookings.map((b) => b.booking_date)).size > 1;
 
@@ -555,6 +576,24 @@ async function BookingListSection({
           reach page 2. Renders nothing at one page. ITEM K.1 — the therapist
           branch now supplies a real count here too, computed above from the
           post-oracle set, so it pages instead of running on to a silent cap. */}
+      {/* F-SCALE-05 — the pager below can only describe the capped set, so the
+          reader is told their real total here instead of being left with a
+          number that is quietly wrong. */}
+      {scopedCapBinds ? (
+        <p
+          role="status"
+          className="rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm text-[var(--admin-text-muted)]"
+        >
+          You have{" "}
+          <strong className="font-semibold text-[var(--admin-heading)]">
+            {scopedAssignmentTotal?.toLocaleString("en-GB")}
+          </strong>{" "}
+          assigned bookings in total. This list carries the{" "}
+          {SCOPED_CANDIDATE_ID_CAP_DISCLOSED} most recent — use the date filters
+          to reach older ones.
+        </p>
+      ) : null}
+
       <PaginationBar
         page={listWindow.page}
         pageCount={listWindow.pageCount}

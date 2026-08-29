@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import {
-  auditLoadMore,
-  type AuditCursor,
-  type AuditEventRow,
-  type AuditFilters,
-} from "./actions";
+import { auditLoadMore } from "./actions";
+// ⛔ F-SCALE-04 — types come from `./queries`, never from the "use server"
+// module. Re-exporting them through `actions.ts` made the built server chunk
+// reference erased names and 500 on every click.
+import type { AuditCursor, AuditEventRow, AuditFilters } from "./queries";
 import { AuditEventCard } from "./AuditEventCard";
 import type { AuditFilterState } from "./format";
 

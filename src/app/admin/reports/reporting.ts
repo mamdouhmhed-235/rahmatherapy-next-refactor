@@ -152,6 +152,13 @@ export interface ReportData {
   // B-2: full rule rows for getUtilisationRate. Optional so dashboard-data.ts
   // (RECON §5 untouchable) can omit; helpers default to [] when absent.
   staffAvailabilityRules?: StaffAvailabilityRule[];
+  /**
+   * ⛔ F-SCALE-03. Names any table whose read hit `REPORT_ROW_CEILING`, so a
+   * surface can tell the reader its figures are partial instead of presenting
+   * a short answer as the whole truth. Empty (and normally absent) in every
+   * realistic case — optional so existing constructed fixtures stay valid.
+   */
+  truncatedTables?: string[];
 }
 
 export interface MetricDefinition {
@@ -269,6 +276,60 @@ export function parseReportFilters(searchParams: Record<string, string | string[
   };
 }
 
+/**
+ * ⛔ F-SCALE-03 — the Data API refuses to return more than its "Max rows"
+ * setting (measured: 1000 on this project) and reports the short answer as a
+ * SUCCESS. Page size must therefore be <= that ceiling, or every page comes
+ * back short and the walk stops after one.
+ */
+const REPORT_PAGE_SIZE = 1000;
+
+/**
+ * ⛔ A safety ceiling, NOT a data limit. Paging with no bound at all would swap
+ * a silently-wrong report for a Worker that runs out of memory mid-request —
+ * equally invisible to the reader. At the five-year projection the largest of
+ * these tables is ~20,000 rows, so this is comfortably clear of real use; if it
+ * is ever reached, `ReportData.truncatedTables` says so rather than the report
+ * quietly under-counting.
+ */
+const REPORT_ROW_CEILING = 25_000;
+
+type PagedResult<T> = { data: T[]; truncated: boolean };
+
+/**
+ * Walk a table one page at a time until a short page proves the end was
+ * reached. `makePage` must apply a deterministic total ordering — see the note
+ * at the call site about the `id` tiebreaker.
+ */
+async function fetchAllRows<T>(
+  makePage: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  label: string
+): Promise<PagedResult<T>> {
+  const rows: T[] = [];
+  for (let from = 0; from < REPORT_ROW_CEILING; from += REPORT_PAGE_SIZE) {
+    const { data, error } = await makePage(from, from + REPORT_PAGE_SIZE - 1);
+    // ⛔ Read the error. The original defect was invisible precisely because a
+    // truncated read is not an error — but a real failure must not be swallowed
+    // into an empty array that renders as "£0 this month".
+    if (error) {
+      const message =
+        typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : "unknown error";
+      throw new Error(`getReportData: reading ${label} failed — ${message}`);
+    }
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < REPORT_PAGE_SIZE) {
+      return { data: rows, truncated: false };
+    }
+  }
+  return { data: rows, truncated: true };
+}
+
 export async function getReportData(
   adminClient: SupabaseClient,
   profile: StaffProfile,
@@ -301,8 +362,21 @@ export async function getReportData(
   // the render sites instead: `filterReportDataToStaff` for clients, and
   // `resolvableStaffFor` for staff names.
   const universalScope = hasUniversalReportScope(profile);
-  const emptyResult = <T,>() => Promise.resolve({ data: [] as T[] });
+  const emptyPage = <T,>(): PagedResult<T> => ({ data: [] as T[], truncated: false });
 
+  // ⛔ F-SCALE-03. Every read below used to ask for "all of it" with no
+  // `.range()`. The Data API's "Max rows" ceiling is 1000, so each one silently
+  // stopped at 1000 rows and returned HTTP 206 — a SUCCESS, not an error, so
+  // there was nothing for `if (error)` to catch. The reports, the calendar, the
+  // CSV export and the staff performance surface all run on this function, so
+  // past 1000 rows they all computed from truncated data and reported
+  // confidently wrong numbers. The bookings read is ordered ascending, so it
+  // kept the OLDEST 1000 and dropped the most recent — the worst possible half
+  // to lose from a revenue report.
+  //
+  // ⚠️ Every paged read now carries `id` as its FINAL sort key. Paging with
+  // `.range()` over a non-unique ordering can skip or duplicate rows between
+  // pages; a unique tiebreaker is what makes the walk deterministic.
   const [
     bookingsResult,
     assignmentsResult,
@@ -314,57 +388,127 @@ export async function getReportData(
     emailEventsResult,
     operationalEventsResult,
   ] = await Promise.all([
-    adminClient
-      .from("bookings")
-      .select(BOOKING_SELECT)
-      .gte("booking_date", filters.from)
-      .lte("booking_date", filters.to)
-      .order("booking_date")
-      .order("start_time")
-      .returns<ReportBooking[]>(),
-    adminClient
-      .from("booking_assignments")
-      .select(ASSIGNMENT_SELECT)
-      .returns<ReportAssignment[]>(),
-    adminClient
-      .from("booking_items")
-      .select(BOOKING_ITEM_SELECT)
-      .returns<ReportBookingItem[]>(),
-    adminClient
-      .from("clients")
-      .select("id, full_name, client_source, created_at")
-      .returns<ReportClient[]>(),
-    adminClient
-      .from("staff_profiles")
-      .select("id, name, gender, active, can_take_bookings, availability_mode, role_id, roles(name, display_label)")
-      .order("name")
-      .returns<ReportStaff[]>(),
-    adminClient
-      .from("staff_availability_rules")
-      .select("staff_id, day_of_week, start_time, end_time, is_working_day")
-      .returns<StaffAvailabilityRule[]>(),
+    fetchAllRows<ReportBooking>(
+      (from, to) =>
+        adminClient
+          .from("bookings")
+          .select(BOOKING_SELECT)
+          .gte("booking_date", filters.from)
+          .lte("booking_date", filters.to)
+          .order("booking_date")
+          .order("start_time")
+          .order("id")
+          .range(from, to)
+          .returns<ReportBooking[]>(),
+      "bookings"
+    ),
+    fetchAllRows<ReportAssignment>(
+      (from, to) =>
+        adminClient
+          .from("booking_assignments")
+          .select(ASSIGNMENT_SELECT)
+          .order("id")
+          .range(from, to)
+          .returns<ReportAssignment[]>(),
+      "booking_assignments"
+    ),
+    fetchAllRows<ReportBookingItem>(
+      (from, to) =>
+        adminClient
+          .from("booking_items")
+          .select(BOOKING_ITEM_SELECT)
+          .order("id")
+          .range(from, to)
+          .returns<ReportBookingItem[]>(),
+      "booking_items"
+    ),
+    fetchAllRows<ReportClient>(
+      (from, to) =>
+        adminClient
+          .from("clients")
+          .select("id, full_name, client_source, created_at")
+          .order("id")
+          .range(from, to)
+          .returns<ReportClient[]>(),
+      "clients"
+    ),
+    fetchAllRows<ReportStaff>(
+      (from, to) =>
+        adminClient
+          .from("staff_profiles")
+          .select("id, name, gender, active, can_take_bookings, availability_mode, role_id, roles(name, display_label)")
+          .order("name")
+          .order("id")
+          .range(from, to)
+          .returns<ReportStaff[]>(),
+      "staff_profiles"
+    ),
+    fetchAllRows<StaffAvailabilityRule>(
+      (from, to) =>
+        adminClient
+          .from("staff_availability_rules")
+          .select("staff_id, day_of_week, start_time, end_time, is_working_day")
+          .order("id")
+          .range(from, to)
+          .returns<StaffAvailabilityRule[]>(),
+      "staff_availability_rules"
+    ),
     universalScope
-      ? adminClient
-          .from("enquiries")
-          .select("id, full_name, source, status, created_at, first_contacted_at, assigned_staff_id, converted_booking_id")
-          .order("created_at", { ascending: false })
-          .returns<ReportEnquiry[]>()
-      : emptyResult<ReportEnquiry>(),
+      ? fetchAllRows<ReportEnquiry>(
+          (from, to) =>
+            adminClient
+              .from("enquiries")
+              .select("id, full_name, source, status, created_at, first_contacted_at, assigned_staff_id, converted_booking_id")
+              .order("created_at", { ascending: false })
+              .order("id")
+              .range(from, to)
+              .returns<ReportEnquiry[]>(),
+          "enquiries"
+        )
+      : emptyPage<ReportEnquiry>(),
     universalScope
-      ? adminClient
-          .from("email_delivery_events")
-          .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
-          .order("created_at", { ascending: false })
-          .returns<EmailEvent[]>()
-      : emptyResult<EmailEvent>(),
+      ? fetchAllRows<EmailEvent>(
+          (from, to) =>
+            adminClient
+              .from("email_delivery_events")
+              .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
+              .order("created_at", { ascending: false })
+              .order("id")
+              .range(from, to)
+              .returns<EmailEvent[]>(),
+          "email_delivery_events"
+        )
+      : emptyPage<EmailEvent>(),
     universalScope
-      ? adminClient
-          .from("operational_events")
-          .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
-          .order("created_at", { ascending: false })
-          .returns<OperationalEvent[]>()
-      : emptyResult<OperationalEvent>(),
+      ? fetchAllRows<OperationalEvent>(
+          (from, to) =>
+            adminClient
+              .from("operational_events")
+              .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
+              .order("created_at", { ascending: false })
+              .order("id")
+              .range(from, to)
+              .returns<OperationalEvent[]>(),
+          "operational_events"
+        )
+      : emptyPage<OperationalEvent>(),
   ]);
+
+  // ⛔ If a read DID hit the safety ceiling, say so out loud rather than
+  // repeating the original defect one order of magnitude higher up.
+  const truncatedTables = [
+    ["bookings", bookingsResult],
+    ["booking_assignments", assignmentsResult],
+    ["booking_items", itemsResult],
+    ["clients", clientsResult],
+    ["staff_profiles", staffResult],
+    ["staff_availability_rules", staffAvailabilityRulesResult],
+    ["enquiries", enquiriesResult],
+    ["email_delivery_events", emailEventsResult],
+    ["operational_events", operationalEventsResult],
+  ]
+    .filter(([, result]) => (result as PagedResult<unknown>).truncated)
+    .map(([label]) => label as string);
 
   const allAssignments = assignmentsResult.data ?? [];
   const scopedBookingIds = getScopedBookingIds(
@@ -433,6 +577,7 @@ export async function getReportData(
       ...new Set((staffAvailabilityRulesResult.data ?? []).map((rule) => rule.staff_id)),
     ],
     staffAvailabilityRules: staffAvailabilityRulesResult.data ?? [],
+    truncatedTables,
   };
 }
 

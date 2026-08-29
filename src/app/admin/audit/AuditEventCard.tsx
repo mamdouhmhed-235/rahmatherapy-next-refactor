@@ -14,7 +14,8 @@ import {
 } from "./format";
 import { redactStatePayload, summariseRedactions } from "./redaction";
 import { AuditRowMenu } from "./AuditRowMenu";
-import type { AuditEventRow } from "./actions";
+// ⛔ F-SCALE-04 — from `./queries`, not from the "use server" module.
+import type { AuditEventRow } from "./queries";
 
 // Per `quieter` axis: tone down chip presence. A small family-tinted icon sits
 // beside the verb. The icon SHAPE differentiates the family for sighted users

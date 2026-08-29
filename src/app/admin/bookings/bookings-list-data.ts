@@ -628,6 +628,48 @@ export function bookingListFiltersFromQuery(
  */
 const SCOPED_CANDIDATE_ID_CAP = 125;
 
+/**
+ * ⛔ F-SCALE-05 — EXPORTED ON PURPOSE, and that is the whole fix.
+ *
+ * The cap above used to be module-private, so no renderer could see it. The
+ * therapist branch then paged the already-truncated array through
+ * `paginateInMemory`, whose `total` is `rows.length` — and the pager printed
+ * that as an authoritative total. Measured: a therapist with 130 assignments
+ * saw "Showing 101–125 of 125" while five of their bookings appeared on no
+ * page at all. That is a positive false statement, not merely an omission.
+ *
+ * Every cap in this codebase that DOES warn the reader is exported and paired
+ * with an independent `count: "exact"` head-count (see
+ * `countClientCandidates`). This pair brings the therapist branch into that
+ * same pattern rather than inventing a new one.
+ */
+export const SCOPED_CANDIDATE_ID_CAP_DISCLOSED = SCOPED_CANDIDATE_ID_CAP;
+
+/**
+ * The TRUE number of assignment rows the reader's scoped list is drawn from,
+ * counted server-side over the same predicates as the capped read. Compare it
+ * with `SCOPED_CANDIDATE_ID_CAP_DISCLOSED` to know whether the cap bound.
+ *
+ * ⚠️ Counts assignment ROWS, not bookings — one booking writes one assignment
+ * row per participant, so a multi-participant booking consumes more than one
+ * slot. That is exactly what the cap itself counts, so the comparison is
+ * like-for-like.
+ */
+export async function countScopedAssignments(
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
+  predicates?: BookingPredicateContext
+): Promise<number> {
+  const adminClient = createSupabaseAdminClient();
+  const { count } = await applyBookingPredicates(
+    adminClient
+      .from("booking_assignments")
+      .select("booking_id, bookings!inner(id)", { count: "exact", head: true })
+      .eq("assigned_staff_id", profile.id),
+    predicates ? candidateStepsFor(predicates) : []
+  );
+  return count ?? 0;
+}
+
 // Exported (C-FIELDWORK Phase D, brief §9.4 locked decision) — dashboard/page.tsx
 // reuses this exact gender-matched claimable-scoping logic for the
 // practitioner-mode Owner/Coordinator's claimableCount. Behaviour unchanged.
