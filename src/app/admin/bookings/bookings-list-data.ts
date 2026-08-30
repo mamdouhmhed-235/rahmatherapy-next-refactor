@@ -52,12 +52,32 @@ import {
   type PaginatedResult,
 } from "@/lib/pagination";
 import type { getStaffProfile } from "@/lib/auth/rbac";
+import type { Database } from "@/lib/supabase/database.types";
 import { canClaimAssignments } from "./access";
 import { getTodayIsoDate } from "./_helpers";
 import type { BookingViewKey } from "./BookingsChrome";
 import type { BookingRecord } from "./types";
 
 type Profile = NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+
+// ⛔ SAFETY-RELEVANT. `booking_assignments.required_therapist_gender` is NOT
+// NULL on `staff_gender_type`, an enum with exactly two members — it is what
+// records a client's requirement for a male or female therapist. But
+// `StaffProfile.gender` (rbac.ts) is typed as a plain `string`, so the compiler
+// cannot prove the value we filter on is one of the two. Validate it instead of
+// asserting it: a gender that is not a member of the enum means "this staff row
+// matches NOTHING", never "match anything". `null` therefore has to fail CLOSED
+// at every call site below — no claimable rows at all — because the alternative
+// failure mode is showing a therapist a booking that asked for the other gender.
+type StaffGender = Database["public"]["Enums"]["staff_gender_type"];
+
+// `satisfies` (not a cast): if the generated enum ever drops or renames a member
+// this list stops compiling, instead of silently filtering on a dead value.
+const STAFF_GENDERS = ["male", "female"] as const satisfies readonly StaffGender[];
+
+function asStaffGender(gender: string): StaffGender | null {
+  return STAFF_GENDERS.find((member) => member === gender) ?? null;
+}
 
 // C-04a Phase G — `cancelled_at` is named here in the SAME change that adds it
 // to `BookingRecord` (./types.ts). Splitting them leaves the field `undefined`
@@ -706,27 +726,31 @@ export async function getScopedBookingIds(
   // `claimableIds` at the source, rather than relying solely on the
   // in-memory `filterBookings` pass below for defense-in-depth.
   const todayISO = getTodayIsoDate();
-  const claimableRows = canClaimAssignments(profile)
-    ? (
-        await adminClient
-          .from("booking_assignments")
-          .select("booking_id, bookings!inner(status, booking_date)")
-          .eq("status", "unassigned")
-          .is("assigned_staff_id", null)
-          .eq("required_therapist_gender", profile.gender)
-          .not("bookings.status", "in", '("cancelled","no_show")')
-          .gte("bookings.booking_date", todayISO)
-          // ITEM K.1 — this array feeds `.in()` on a CLAIMABLE_BOOKING_SELECT
-          // query too, so it carries the same request-line ceiling as the
-          // assigned half and needs the same bound. It is already narrowed to
-          // future-dated, non-cancelled, unassigned, gender-matched rows, so it
-          // is far smaller in practice — but "smaller in practice" is what the
-          // assigned half's original comment said as well.
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(SCOPED_CANDIDATE_ID_CAP)
-      ).data ?? []
-    : [];
+  // ⛔ Gender is the claim gate, so an unrecognised gender yields NO claimables
+  // rather than an unfiltered read. See `asStaffGender` at the top of the file.
+  const claimGender = asStaffGender(profile.gender);
+  const claimableRows =
+    canClaimAssignments(profile) && claimGender
+      ? (
+          await adminClient
+            .from("booking_assignments")
+            .select("booking_id, bookings!inner(status, booking_date)")
+            .eq("status", "unassigned")
+            .is("assigned_staff_id", null)
+            .eq("required_therapist_gender", claimGender)
+            .not("bookings.status", "in", '("cancelled","no_show")')
+            .gte("bookings.booking_date", todayISO)
+            // ITEM K.1 — this array feeds `.in()` on a CLAIMABLE_BOOKING_SELECT
+            // query too, so it carries the same request-line ceiling as the
+            // assigned half and needs the same bound. It is already narrowed to
+            // future-dated, non-cancelled, unassigned, gender-matched rows, so
+            // it is far smaller in practice — but "smaller in practice" is what
+            // the assigned half's original comment said as well.
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(SCOPED_CANDIDATE_ID_CAP)
+        ).data ?? []
+      : [];
 
   return {
     assignedIds: Array.from(

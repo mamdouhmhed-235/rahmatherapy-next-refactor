@@ -180,10 +180,20 @@ export default async function AvailabilityPage({
       .from("availability_rules")
       .select("day_of_week, start_time, end_time, is_working_day")
       .order("day_of_week"),
+    // F-04B-01: was `.select("booking_date, staff_id").eq("staff_id", staffId)`,
+    // but `bookings` has NO `staff_id` column — a therapist is linked to a
+    // booking through `booking_assignments.assigned_staff_id`. PostgREST
+    // rejected it with 42703, the code discarded `error`, and the result came
+    // back empty. Net effect: `bookingsByDate` was ALWAYS empty, so the
+    // "this therapist already has bookings that day" guard in
+    // StaffBlockedDatesManager could never fire. Now joined properly.
+    // `id` is selected so duplicate rows can be collapsed below: there is one
+    // assignment row PER PARTICIPANT, so a group booking with two participants
+    // on the same therapist would otherwise be counted twice.
     adminClient
       .from("bookings")
-      .select("booking_date, staff_id")
-      .eq("staff_id", staffId)
+      .select("id, booking_date, booking_assignments!inner(assigned_staff_id)")
+      .eq("booking_assignments.assigned_staff_id", staffId)
       .gte("booking_date", today)
       .neq("status", "cancelled"),
     adminClient
@@ -234,8 +244,16 @@ export default async function AvailabilityPage({
   const overridesTrail = formatAuditTrail("staff_availability_overrides");
 
   // bookings-by-date map for the closure-guard inside StaffBlockedDatesManager
+  // F-04B-01: count DISTINCT bookings per date. The inner join above yields one
+  // row per assignment, and `booking_assignments` has one row per participant
+  // with no unique constraint on (booking_id, assigned_staff_id) — so a group
+  // booking would inflate the count without this de-duplication.
   const bookingsByDate: Record<string, number> = {};
+  const countedBookingIds = new Set<string>();
   for (const row of upcomingBookings ?? []) {
+    const bookingId = String(row.id);
+    if (countedBookingIds.has(bookingId)) continue;
+    countedBookingIds.add(bookingId);
     const key = String(row.booking_date);
     bookingsByDate[key] = (bookingsByDate[key] ?? 0) + 1;
   }

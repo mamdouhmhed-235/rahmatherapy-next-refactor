@@ -139,7 +139,7 @@ export interface StaffDetailData {
   availabilityRules: { id: string }[];
   siblingStaff: { id: string; name: string }[];
   lastModified:
-    | { created_at: string; actor_id: string | null; action_type: string }
+    | { created_at: string; actor_staff_id: string | null; action_type: string }
     | null;
   lastModifiedActorName: string | null;
 }
@@ -209,7 +209,7 @@ export async function getStaffDetailData(
         { data: auditLogs },
         { data: availabilityRules },
         { data: siblingStaff },
-        { data: lastModifiedRows },
+        { data: lastModifiedRows, error: lastModifiedError },
       ] = await Promise.all([
         canShowAdminPanels && typedStaff.role_id
           ? adminClient
@@ -275,24 +275,41 @@ export async function getStaffDetailData(
         canViewAudit
           ? adminClient
               .from("audit_logs")
-              .select("created_at, actor_id, action_type")
+              .select("created_at, actor_staff_id, action_type")
               .eq("target_id", staffId)
               .order("created_at", { ascending: false })
               .limit(1)
-          : Promise.resolve({ data: [] }),
+          : // `error: null` keeps this branch union-compatible with the query
+            // branch, so the error can actually be read below (F-04B-05).
+            Promise.resolve({ data: [], error: null }),
       ]);
+
+      // F-04B-05: this query asked `audit_logs` for `actor_id`, which does not
+      // exist — the column is `actor_staff_id`. PostgREST rejected it with
+      // 42703, the error was discarded, and `lastModifiedRows` came back null,
+      // so the "Last modified by … " caption in the staff profile header
+      // (page.tsx) NEVER rendered for anyone, and the actor-name lookup below
+      // was permanently dead code. Measured 2026-08-29: 5 of 12 staff profiles
+      // have a resolvable audit actor and were silently missing the caption.
+      // Read the error now so the next mismatch is loud instead of invisible.
+      if (lastModifiedError) {
+        console.error(
+          `[staff-detail-data] last-modified lookup failed for staff ${staffId}; the header caption will be omitted.`,
+          lastModifiedError
+        );
+      }
 
       const lastModified =
         ((lastModifiedRows ?? [])[0] as
-          | { created_at: string; actor_id: string | null; action_type: string }
+          | { created_at: string; actor_staff_id: string | null; action_type: string }
           | undefined) ?? null;
 
       let lastModifiedActorName: string | null = null;
-      if (lastModified?.actor_id) {
+      if (lastModified?.actor_staff_id) {
         const { data: actorRow } = await adminClient
           .from("staff_profiles")
           .select("name")
-          .eq("id", lastModified.actor_id)
+          .eq("id", lastModified.actor_staff_id)
           .maybeSingle();
         lastModifiedActorName = (actorRow as { name?: string } | null)?.name ?? null;
       }

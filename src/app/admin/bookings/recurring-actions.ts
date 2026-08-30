@@ -113,15 +113,35 @@ export interface CancelRecurringSeriesState {
   error?: string;
 }
 
-/** The jsonb `create_recurring_booking_series` returns — camelCase, as spelled. */
-interface CreateRecurringSeriesResult {
-  templateId: string;
-  occurrenceCount: number;
-  skippedCount: number;
-  horizonThrough: string;
-  firstOccurrenceDate: string;
-  serviceName: string;
-}
+/**
+ * The jsonb `create_recurring_booking_series` returns — camelCase, as spelled by
+ * its closing `jsonb_build_object`.
+ *
+ * ⛔ CHECKED AT RUNTIME, NOT ASSERTED. The RPC's return type is `jsonb`, so the
+ * client hands back `Json` — a value the compiler knows nothing about. It used
+ * to be asserted into this shape, which meant a return that did not match would
+ * have sailed through and put the word "undefined" in the redirect URL. It is
+ * parsed instead, with zod, exactly as the FormData is.
+ *
+ * ⛔ ONLY `templateId` IS FATAL IF MISSING. It is the only field this action
+ * uses (the confirmation email and the redirect both key off it). The rest are
+ * the RPC's own report of what it did, and the RPC records them itself in the
+ * `recurring_series_created` audit row it writes — so refusing a series that HAS
+ * been created because one of them was absent would tell the operator the
+ * opposite of the truth and push them into making a duplicate.
+ */
+const createSeriesResultSchema = z.object({
+  templateId: z.string().uuid(),
+  // `.nullish()`, not `.optional()`: `jsonb_build_object` ALWAYS emits every
+  // key, so a value that goes missing arrives as JSON `null`, never as an
+  // absent key. `.optional()` alone would tolerate the one case that cannot
+  // happen and refuse the one that can.
+  occurrenceCount: z.number().int().nullish(),
+  skippedCount: z.number().int().nullish(),
+  horizonThrough: z.string().nullish(),
+  firstOccurrenceDate: z.string().nullish(),
+  serviceName: z.string().nullish(),
+});
 
 export async function createRecurringSeries(
   _previousState: RecurringActionState,
@@ -224,6 +244,31 @@ export async function createRecurringSeries(
     }
   }
 
+  // ⛔ AN END CONDITION MUST CARRY ITS OWN VALUE.
+  //
+  // `create_recurring_booking_series` already refuses both of these ("A positive
+  // number of visits is required when the series ends after a count" / "An end
+  // date is required when the series ends on a specific date") — but it refuses
+  // only after the availability pre-check below has already run, and a raised
+  // Postgres message is not something to put in front of an admin. Same posture
+  // as the `allow_recurrence` check and the monthly day-of-month guard above:
+  // refuse here, in the operator's own words, on the field that is wrong.
+  //
+  // ⛔ It also makes the two fallbacks in the `compute_occurrence_dates` call
+  // below UNREACHABLE rather than merely unread — see the note there.
+  if (parsed.data.end_type === "after_count" && parsed.data.end_count === undefined) {
+    return {
+      error: "Say how many visits the repeat booking should run for.",
+      fieldErrors: { end_count: "Enter the number of visits, 1 or more." },
+    };
+  }
+  if (parsed.data.end_type === "until_date" && parsed.data.end_date === undefined) {
+    return {
+      error: "Give the date the repeat booking should run until.",
+      fieldErrors: { end_date: "Enter the date of the last visit." },
+    };
+  }
+
   // ⛔ D-042 — DO NOT PROMISE A SLOT THE CLINIC CANNOT COVER.
   //
   // Owner ruling D-042 (2026-08-22), chosen from three options: "fix it
@@ -244,16 +289,36 @@ export async function createRecurringSeries(
   // so the dates checked here are exactly the dates the RPC will lay out.
   const horizonThrough = new Date(`${parsed.data.first_occurrence_date}T00:00:00Z`);
   horizonThrough.setUTCDate(horizonThrough.getUTCDate() + RECURRING_HORIZON_WEEKS * 7 - 1);
+  const horizonEndDate = horizonThrough.toISOString().slice(0, 10);
 
   const { data: occurrenceDates, error: datesError } = await adminClient.rpc(
     "compute_occurrence_dates",
     {
       p_first_date: parsed.data.first_occurrence_date,
       p_cadence: parsed.data.cadence,
-      p_horizon_end: horizonThrough.toISOString().slice(0, 10),
+      p_horizon_end: horizonEndDate,
       p_end_type: parsed.data.end_type,
-      p_end_count: parsed.data.end_count ?? null,
-      p_end_date: parsed.data.end_date ?? null,
+      // ⛔ NEITHER OF THESE MAY BE DROPPED, AND NEITHER MAY BE NULL.
+      //
+      // All six of this function's parameters are declared with NO DEFAULT, so
+      // PostgREST resolves the call only when every one is supplied — leaving a
+      // key out 404s the function rather than defaulting it. That is also why
+      // the generated Args type spells them as a plain `number`/`string` with no
+      // `?`: they are required, and `null` no longer type-checks.
+      //
+      // Each is read ONLY inside its own branch of the deployed body —
+      // `IF p_end_type = 'after_count' AND v_count >= p_end_count`, and
+      // `LEAST(p_end_date, p_horizon_end)` under 'until_date' — and the guard
+      // above has already refused the two cases where that branch runs without a
+      // value. So the fallbacks below are unreachable, not merely ignored:
+      //   • the horizon end for the date, which is the very date NULL already
+      //     produced (LEAST ignores NULLs, so LEAST(NULL, h) = h = LEAST(h, h));
+      //   • 0 for the count, chosen so that IF the body were ever changed to
+      //     apply the count outside its branch, the walk returns NO dates and
+      //     the refusal below fires — failing closed and in the open, instead of
+      //     quietly promising visits.
+      p_end_count: parsed.data.end_count ?? 0,
+      p_end_date: parsed.data.end_date ?? horizonEndDate,
     }
   );
 
@@ -346,15 +411,31 @@ export async function createRecurringSeries(
       p_participant_gender: parsed.data.participant_gender,
       p_required_therapist_gender: parsed.data.participant_gender,
       p_actor_staff_id: actor.id,
-      p_bound_therapist_id: parsed.data.bound_therapist_id ?? null,
+      // ⛔ OMITTED WHERE IT USED TO SAY NULL — AND THAT IS THE SAME NULL.
+      //
+      // Every one of the parameters below is declared `DEFAULT NULL` on the
+      // deployed function, and PostgREST applies a parameter's default when its
+      // key is absent from the body. So an omitted key stores exactly the NULL
+      // the old explicit `?? null` stored — the template row is identical. The
+      // generated Args type reads those defaults back off the live signature and
+      // marks each one optional and non-null, which is why `null` itself no
+      // longer type-checks; dropping the key is the only spelling left that
+      // keeps the stored row the same.
+      //
+      // ⛔ The parameters whose SQL default is NOT null are still passed
+      // explicitly, which was the real point of never leaning on the RPC's
+      // defaults: `p_consent_acknowledged` (DEFAULT true — the consent gate),
+      // `p_open_to_any_therapist` (DEFAULT false) and `p_horizon_weeks`
+      // (DEFAULT 12, which must match the horizon checked above).
+      p_bound_therapist_id: parsed.data.bound_therapist_id,
       p_open_to_any_therapist: parsed.data.open_to_any_therapist,
-      p_end_count: parsed.data.end_count ?? null,
-      p_end_date: parsed.data.end_date ?? null,
-      p_service_address_line1: parsed.data.service_address_line1 ?? null,
-      p_service_postcode: parsed.data.service_postcode ?? null,
-      p_service_city: parsed.data.service_city ?? null,
-      p_service_area: parsed.data.service_area ?? null,
-      p_notes: parsed.data.notes ?? null,
+      p_end_count: parsed.data.end_count,
+      p_end_date: parsed.data.end_date,
+      p_service_address_line1: parsed.data.service_address_line1,
+      p_service_postcode: parsed.data.service_postcode,
+      p_service_city: parsed.data.service_city,
+      p_service_area: parsed.data.service_area,
+      p_notes: parsed.data.notes,
       p_consent_acknowledged: parsed.data.consent_acknowledged,
       p_horizon_weeks: RECURRING_HORIZON_WEEKS,
     }
@@ -362,7 +443,41 @@ export async function createRecurringSeries(
 
   if (rpcError) return { error: rpcError.message };
 
-  const result = rpcResult as CreateRecurringSeriesResult;
+  // ⛔ INVALIDATE UNCONDITIONALLY, BEFORE THE PARSE GUARD BELOW.
+  // The write has already happened by this point, so these views are stale
+  // whatever the RPC reported back. The guard below can return early telling the
+  // operator to "check this client's bookings" — that message is worthless if
+  // the very lists it points at have not been refreshed, because the operator
+  // would see no new visits and create the series a second time. Only the
+  // confirmation email and the redirect need `templateId`, so only they stay
+  // after the parse.
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
+  revalidatePath(`/admin/clients/${parsed.data.client_id}`);
+
+  // ⛔ THE SERIES EXISTS BY THIS POINT, SO THE MESSAGE MUST NOT INVITE A RETRY.
+  //
+  // The RPC returns `jsonb`, which reaches us as `Json` — no compiler knowledge
+  // of the shape at all. If the parse fails we cannot redirect to the series or
+  // email the client, because both need `templateId`; but the visits HAVE been
+  // written and the RPC has audited them. Saying so, and pointing at the client's
+  // bookings, is the difference between one series and two.
+  const parsedResult = createSeriesResultSchema.safeParse(rpcResult);
+  if (!parsedResult.success) {
+    return {
+      error:
+        "The repeat visits were created, but the database did not report the new series back. " +
+        "Check this client's bookings before creating it again.",
+    };
+  }
+  const result = parsedResult.data;
 
   // No audit insert here: the RPC writes its own `recurring_series_created` row
   // against the template id, with a far richer after_state than this action
@@ -385,17 +500,6 @@ export async function createRecurringSeries(
       console.error("Unable to send recurring series created email.", error);
     });
   }
-
-  updateTag("report-data");
-  updateTag("dashboard-data");
-  updateTag(TAGS.BOOKINGS);
-  updateTag(TAGS.CLIENTS);
-  updateTag(TAGS.AUDIT);
-  updateTag(TAGS.EMAILS);
-  revalidatePath("/admin/bookings");
-  revalidatePath("/admin/dashboard");
-  revalidatePath("/admin/calendar");
-  revalidatePath(`/admin/clients/${parsed.data.client_id}`);
 
   redirect(`/admin/bookings/series/${result.templateId}?created=1`);
 }

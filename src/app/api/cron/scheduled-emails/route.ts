@@ -92,6 +92,101 @@ export async function POST(request: Request): Promise<Response> {
   const failures: string[] = [];
 
   for (const row of queued) {
+    // ⛔ THE ROW'S PAYLOAD IS RESOLVED BEFORE THE CLAIM, NOT AFTER.
+    //
+    // Every payload column on `email_delivery_events` is nullable, and that is
+    // not defensive over-typing — the same table also holds the rows
+    // recordEmailDeliveryEvent writes for immediate sends, which carry a
+    // `recipient_email` and no rendered payload at all. (At the time of writing
+    // every row in the live table has a null `to_email` for exactly that
+    // reason.) Only the two writers that PARK a row — sendTrackedEmail's delay
+    // branch and queueEmailRetry — fill to_email / subject / html_payload /
+    // text_payload, so a 'queued' row missing any of them is malformed, not
+    // ordinary, and something upstream is broken.
+    //
+    // The address falls back to `recipient_email`, the column every writer
+    // populates. The retry path below already read it that way and the send
+    // path did not; that inconsistency is what this resolves.
+    //
+    // ⛔ It happens BEFORE the claim because the claim writes the terminal
+    // 'sent'. Finding a malformed row after claiming would mean writing 'sent'
+    // for an email that can never go and then correcting it — and if the
+    // correction failed (a missing UPDATE grant is exactly how this route broke
+    // once already) /admin/emails would show a success that is a lie, for ever.
+    // Resolving first lets a bad row go 'queued' -> 'failed' in ONE conditional
+    // write, on the same predicate, so restoreBooking can still win the race.
+    const recipient = row.to_email ?? row.recipient_email;
+    const { subject, html_payload: html, text_payload: text } = row;
+
+    // `recipient_role` only labels the record — the operational-event summary
+    // and the retry row. A null there is not a delivery risk, so it degrades to
+    // a word rather than blocking the send or printing "null" into the summary.
+    const recipientRole = row.recipient_role ?? "unknown";
+
+    // ⛔ NOT `?? ""`. An empty address is not a fallback, it is an email that
+    // cannot be delivered; an empty subject or body is a broken message a real
+    // client receives and cannot un-receive. Both are worse than a failure the
+    // clinic can see on /admin/emails and act on, so a row that cannot produce
+    // a whole email is recorded as failed and never handed to the provider.
+    if (!recipient || subject === null || html === null || text === null) {
+      const missing: string[] = [];
+      if (!recipient) missing.push("recipient address");
+      if (subject === null) missing.push("subject");
+      if (html === null) missing.push("html body");
+      if (text === null) missing.push("text body");
+      const reason = `malformed queued row, no ${missing.join(", no ")}`;
+
+      // Same conditional predicate as the claim below, for the same reason: a
+      // restore may still be moving this row, and a suppressed email must not
+      // be overwritten with 'failed' any more than it may be sent.
+      const { data: failed, error: failError } = await supabase
+        .from("email_delivery_events")
+        .update({ delivery_status: "failed", error_message: reason })
+        .eq("id", row.id)
+        .eq("delivery_status", "queued")
+        .select("id");
+
+      if (failError) {
+        // Outcome 1, as below: the write never happened, the row is still
+        // 'queued', and the next tick will look at it again.
+        Sentry.captureException(failError);
+        failures.push(
+          `${row.id}: could not mark malformed row failed: ${failError.message}`
+        );
+        errored++;
+        continue;
+      }
+      if (!failed?.length) {
+        // Outcome 2, as below: another writer got there first.
+        skipped++;
+        continue;
+      }
+
+      // A malformed queued row means a writer upstream is broken, which is a
+      // different class of problem from a provider refusing a send — so it is
+      // raised to Sentry as well as recorded on the row.
+      Sentry.captureException(new Error(`Scheduled email ${row.id}: ${reason}`));
+      // "not retried" is stated rather than left implied: a retry would copy the
+      // same missing payload and fail identically, which is the undeliverable
+      // loop queueEmailRetry's own no-recipient guard exists to prevent.
+      failures.push(`${row.id}: ${reason} — not sent, not retried`);
+      // Same operational event a failed send records, so a row that never left
+      // reaches /admin/operations and the nav failure counter like any other.
+      await recordOperationalEvent(supabase, {
+        eventType: "failed_email_send",
+        severity: "error",
+        summary: `Email ${row.event_type} could not be sent to ${recipientRole}: ${reason}.`,
+        bookingId: row.booking_id,
+        staffId: row.staff_id ?? null,
+        safeContext: {
+          event_type: row.event_type,
+          recipient_role: recipientRole,
+          delivery_status: "failed",
+        },
+      }).catch(() => undefined);
+      continue;
+    }
+
     // Claim before sending, not after. restoreBooking's suppression sweep flips
     // queued rows to 'cancelled_by_restore'; if we sent first and wrote the
     // status after, a restore landing mid-send would be overwritten by 'sent'
@@ -141,10 +236,10 @@ export async function POST(request: Request): Promise<Response> {
 
     try {
       await sendEmail({
-        to: row.to_email,
-        subject: row.subject,
-        html: row.html_payload,
-        text: row.text_payload,
+        to: recipient,
+        subject,
+        html,
+        text,
       });
       sent++;
     } catch (err) {
@@ -168,12 +263,12 @@ export async function POST(request: Request): Promise<Response> {
       await recordOperationalEvent(supabase, {
         eventType: "failed_email_send",
         severity: "error",
-        summary: `Email ${row.event_type} failed for ${row.recipient_role}.`,
+        summary: `Email ${row.event_type} failed for ${recipientRole}.`,
         bookingId: row.booking_id,
         staffId: row.staff_id ?? null,
         safeContext: {
           event_type: row.event_type,
-          recipient_role: row.recipient_role,
+          recipient_role: recipientRole,
           delivery_status: "failed",
         },
       }).catch(() => undefined);
@@ -185,16 +280,21 @@ export async function POST(request: Request): Promise<Response> {
       // may not be the same worker that queued the row, so a counter that did
       // not travel WITH the message would reset on every tick and retry for
       // ever — which is precisely the failure D-047 warned about.
+      //
+      // The payload handed over is the one that was actually sent, not a re-read
+      // of the row with `?? ""` patched over the gaps: the guard at the top of
+      // the loop already proved every field is present, so there is no gap left
+      // to paper over.
       const priorAttempts = priorAttemptsOf(row.metadata);
       const retry = await queueEmailRetry(supabase, {
         bookingId: row.booking_id,
         eventType: row.event_type,
-        recipientEmail: row.to_email ?? row.recipient_email ?? "",
-        recipientRole: row.recipient_role,
+        recipientEmail: recipient,
+        recipientRole,
         staffId: row.staff_id ?? null,
-        subject: row.subject ?? "",
-        html: row.html_payload ?? "",
-        text: row.text_payload ?? "",
+        subject,
+        html,
+        text,
         priorAttempts,
       });
       // Reported in the worker's log body either way, so "we gave up" is as

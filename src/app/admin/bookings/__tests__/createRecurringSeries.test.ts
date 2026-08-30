@@ -474,7 +474,7 @@ describe("createRecurringSeries — happy path", () => {
       p_bound_therapist_id: THERAPIST_ID,
       p_open_to_any_therapist: false,
       p_end_count: 6,
-      p_end_date: null,
+      p_end_date: undefined,
       p_service_address_line1: "10 Test Street",
       p_service_postcode: "LU1 1AA",
       p_service_city: "Luton",
@@ -485,7 +485,27 @@ describe("createRecurringSeries — happy path", () => {
     });
   });
 
-  it("nulls every unsupplied optional rather than dropping the key", async () => {
+  // ⛔ RETARGETED 2026-08-29, NOT RE-BASELINED. This test used to assert that every
+  // unsupplied optional was sent as an explicit `null`. Wiring the generated Supabase
+  // types in made `null` un-typeable for these parameters, because the generated Args
+  // type reads the deployed signature's defaults back and marks each one optional and
+  // non-null. The key is now omitted instead.
+  //
+  // ⛔ THE STORED ROW IS UNCHANGED, and that was verified rather than assumed: the
+  // deployed signature was read from pg_proc on 2026-08-29 and every parameter dropped
+  // below is declared `DEFAULT NULL` —
+  //   p_end_count integer DEFAULT NULL, p_end_date date DEFAULT NULL,
+  //   p_service_address_line1/postcode/city/area text DEFAULT NULL,
+  //   p_notes text DEFAULT NULL, p_bound_therapist_id uuid DEFAULT NULL
+  // PostgREST applies a parameter's default when its key is absent, so an omitted key
+  // stores exactly the NULL the explicit `null` stored.
+  //
+  // ⛔ THE ORIGINAL POINT OF THE TEST IS PRESERVED AND STILL ASSERTED BELOW: the three
+  // parameters whose SQL default is NOT null are still passed explicitly, so the RPC's
+  // own defaults are never leaned on — `p_consent_acknowledged` (DEFAULT true, the
+  // consent gate), `p_open_to_any_therapist` (DEFAULT false) and `p_horizon_weeks`
+  // (DEFAULT 12, which must match the horizon the action checked).
+  it("omits DEFAULT NULL optionals but never leans on a non-null RPC default", async () => {
     stubAdminClient(RECURRABLE_SERVICE);
 
     await createRecurringSeries({}, recurringFormData());
@@ -500,15 +520,15 @@ describe("createRecurringSeries — happy path", () => {
       p_participant_gender: "female",
       p_required_therapist_gender: "female",
       p_actor_staff_id: owner.id,
-      p_bound_therapist_id: null,
+      p_bound_therapist_id: undefined,
       p_open_to_any_therapist: false,
-      p_end_count: null,
-      p_end_date: null,
-      p_service_address_line1: null,
-      p_service_postcode: null,
-      p_service_city: null,
-      p_service_area: null,
-      p_notes: null,
+      p_end_count: undefined,
+      p_end_date: undefined,
+      p_service_address_line1: undefined,
+      p_service_postcode: undefined,
+      p_service_city: undefined,
+      p_service_area: undefined,
+      p_notes: undefined,
       // Never left to the RPC's `DEFAULT true` — the whole point of the gate.
       p_consent_acknowledged: true,
       p_horizon_weeks: 12,

@@ -4,6 +4,8 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { recordOperationalEvent } from "@/lib/ops/operational-events";
+import type { Database } from "@/lib/supabase/database.types";
 import {
   sendBookingCreatedEmails,
   sendAssignedStaffBookingChangeEmails,
@@ -92,6 +94,18 @@ const RESTORE_TARGET_STATUSES = ["confirmed", "pending"] as const;
 type RestoreTargetStatus = (typeof RESTORE_TARGET_STATUSES)[number];
 
 /**
+ * The generated shapes for the one table this file writes most. Naming them
+ * here is what makes the compiler check every column name and value we send to
+ * `bookings.update(...)` — a hand-rolled `Record<string, unknown>` payload is
+ * exactly the blindness that let a non-existent column reach PostgREST.
+ *
+ * `BookingRow` is what `select("*")` really returns, so it is also the honest
+ * type for the before/after images we write into `audit_logs` (jsonb).
+ */
+type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
+type BookingUpdate = Database["public"]["Tables"]["bookings"]["Update"];
+
+/**
  * ⚠️ `bookings.cancelled_at` HAS ARRIVED — `20260728073903_c04a_scheduled_emails
  * .sql`. This comment used to read "arrives with C-04a's Phase F migration.
  * Until then the restore payload cannot clear it", which stopped being true the
@@ -113,24 +127,30 @@ function hasErrorCode(error: unknown, codes: Set<string>) {
 /**
  * The `restoreBooking` pre-image. The embedded `clients(deleted_at)` is the
  * whole point of naming the relation in the select — see the note there.
+ *
+ * The select is `*, clients(deleted_at)`, so the generated row IS the shape.
+ * This used to carry a `[key: string]: unknown` catch-all, which meant any
+ * mistyped column name read as `unknown` instead of failing, and made the
+ * pre-image unwritable to the `jsonb` audit column. A `type` alias (not an
+ * `interface`) is required so the whole record stays structurally assignable
+ * to `Json`.
  */
-interface RestoreBookingRecord {
-  status: BookingStatus;
-  booking_date: string;
-  start_time: string;
-  cancelled_at?: string | null;
-  customer_cancelled_at: string | null;
+type RestoreBookingRecord = BookingRow & {
   clients: { deleted_at: string | null } | null;
-  [key: string]: unknown;
-}
+};
 
-interface AssignmentClaimRecord {
+/**
+ * A `type`, not an `interface`, on purpose: these records are written verbatim
+ * into `audit_logs.before_state` / `.after_state`, which are `jsonb`, and an
+ * interface has no implicit index signature so it is not assignable to `Json`.
+ */
+type AssignmentClaimRecord = {
   id: string;
   booking_id: string;
   assigned_staff_id: string | null;
   required_therapist_gender: "male" | "female";
   status: AssignmentStatus;
-}
+};
 
 interface BookingAssignmentStatusRecord {
   assigned_staff_id: string | null;
@@ -1093,7 +1113,9 @@ export async function restoreBooking(
 
   const clearsCancellation = beforeState.status === "cancelled";
   const buildPayload = (includeCancelledAt: boolean) => {
-    const payload: Record<string, unknown> = { status: targetStatus };
+    // Typed as the generated Update shape so the compiler checks every column
+    // name and value below against the live schema.
+    const payload: BookingUpdate = { status: targetStatus };
     // Clear stale cancellation fields on the way out of cancelled (W04 B-125).
     if (clearsCancellation) {
       payload.customer_cancelled_at = null;
@@ -1107,7 +1129,7 @@ export async function restoreBooking(
     return payload;
   };
 
-  const applyRestore = (payload: Record<string, unknown>) =>
+  const applyRestore = (payload: BookingUpdate) =>
     adminClient.from("bookings").update(payload).eq("id", bookingId).select().single();
 
   let restored = await applyRestore(buildPayload(true));
@@ -1716,31 +1738,174 @@ export async function createManualBooking(
       const hasAnyAssignment = therapistAssignments.some((id) => id.length > 0);
 
       if (hasAnyAssignment) {
-        const { data: participants } = await adminClient
+        // F-04B-02 — this block silently discarded every therapist selection.
+        //
+        // The old code read participants with `.order("created_at")`, but
+        // `booking_participants` HAS NO `created_at` COLUMN. PostgREST answered
+        // 42703; the call destructured only `data`, so the error vanished,
+        // `participants` came back null, the `if` below was false, and the whole
+        // block was skipped. The surrounding try/catch never fired because
+        // nothing threw. Booking created, selections gone, nothing logged.
+        //
+        // ⛔ There is NO column to substitute. `booking_participants` has no
+        // ordering column at all: `id` is `gen_random_uuid()` (random), and
+        // `booking_assignments.created_at` defaults to `now()`, which is the
+        // TRANSACTION timestamp — identical for every row of one booking. So
+        // insertion order is genuinely unrecoverable from the database, and
+        // ordering by any existing column would produce an ARBITRARY pairing.
+        // That matters here: this clinic matches therapists by gender, so a
+        // wrong pairing could put a male therapist with a client who requires a
+        // female one. That is worse than assigning nobody.
+        //
+        // Instead we match on `display_name`, which the SQL function derives
+        // deterministically from the same form fields we still hold, and we
+        // verify gender before writing. Anything we cannot match with certainty
+        // is skipped and reported, never guessed.
+        const { data: participants, error: participantsError } = await adminClient
           .from("booking_participants")
-          .select("id")
-          .eq("booking_id", result.bookingId)
-          .order("created_at", { ascending: true });
+          .select("id, display_name, is_main_contact, required_therapist_gender")
+          .eq("booking_id", result.bookingId);
+
+        if (participantsError) {
+          throw new Error(
+            `participant lookup failed: ${participantsError.message}`
+          );
+        }
 
         if (participants && participants.length > 0) {
+          // Mirrors create_booking_request's display_name expression exactly
+          // (see db-baseline/05-functions.sql). SQL is 1-based; `i` is 0-based.
+          const contactName = parsed.data.details.fullName.trim();
+          const participantCount = participantIndexes.length;
+          const bookingFor = parsed.data.details.bookingFor;
+          // ⛔ THIS MUST MIRROR `getParticipantNames` IN
+          // src/app/api/bookings/createBookingTransaction.ts, NOT the raw form
+          // input, because that function is what the database actually receives.
+          //
+          // The distinction is not cosmetic and it already caused a silent bug
+          // once. For a SOLO booking, `getParticipantNames` sends the CONTACT's
+          // name unless the booking is explicitly "for someone else" AND a label
+          // was typed — so an admin booking for themselves who typed a different
+          // participant label produces a stored `display_name` that is the
+          // contact name, not the label. Matching on the label would find
+          // nothing and silently skip the therapist selection all over again.
+          //
+          // For a GROUP booking, `getParticipantNames` THROWS unless every
+          // participant has a non-empty typed name, so a blank is unreachable
+          // here and there is no `Participant N` case to mirror on this path.
+          // (The SQL function has such a fallback; the application never lets
+          // the database reach it.)
+          const expectedDisplayName = (i: number): string => {
+            const typed = String(
+              parsed.data.details.participantNames[i] ?? ""
+            ).trim();
+            if (participantCount === 1) {
+              return bookingFor === "someone_else" && typed !== ""
+                ? typed
+                : contactName;
+            }
+            return typed;
+          };
+
+          const chosenStaffIds = Array.from(
+            new Set(therapistAssignments.filter((id) => id.length > 0))
+          );
+          const { data: chosenStaff, error: chosenStaffError } = await adminClient
+            .from("staff_profiles")
+            .select("id, name, gender")
+            .in("id", chosenStaffIds);
+
+          if (chosenStaffError) {
+            throw new Error(
+              `therapist lookup failed: ${chosenStaffError.message}`
+            );
+          }
+
+          const staffById = new Map(
+            (chosenStaff ?? []).map((s) => [s.id, s])
+          );
+
+          const skipped: string[] = [];
           let appliedCount = 0;
 
           for (let i = 0; i < therapistAssignments.length; i++) {
             const staffId = therapistAssignments[i];
-            if (!staffId || !participants[i]) continue;
+            if (!staffId) continue;
 
-            const { data: assignment } = await adminClient
-              .from("booking_assignments")
-              .select("id")
-              .eq("participant_id", participants[i].id)
-              .single();
+            const wanted = expectedDisplayName(i);
+            // ⛔ NO NAME IN THE LABEL. These strings end up in an operational
+            // event, and `operational_events` is documented "safe operational
+            // summaries, never raw payloads" — a participant's display name is
+            // a client's name. The booking id is carried on the event, so the
+            // index is enough for the admin to find the right person.
+            const label = `participant ${i + 1}`;
 
-            if (!assignment) continue;
+            // Index 0 is always the main contact, which disambiguates the case
+            // where the contact's name also appears as another participant.
+            let candidates = participants.filter(
+              (p) => p.display_name === wanted
+            );
+            if (candidates.length > 1 && i === 0) {
+              const mainContact = candidates.filter((p) => p.is_main_contact);
+              if (mainContact.length === 1) candidates = mainContact;
+            }
 
-            await adminClient
+            if (candidates.length !== 1) {
+              skipped.push(
+                `${label}: ${
+                  candidates.length === 0
+                    ? "no matching participant row"
+                    : "name matches more than one participant"
+                }`
+              );
+              continue;
+            }
+            const participant = candidates[0];
+
+            const staff = staffById.get(staffId);
+            if (!staff) {
+              skipped.push(`${label}: chosen therapist not found`);
+              continue;
+            }
+
+            // Same-gender policy: refuse rather than mis-assign.
+            if (
+              participant.required_therapist_gender &&
+              staff.gender !== participant.required_therapist_gender
+            ) {
+              skipped.push(
+                `${label}: needs a ${participant.required_therapist_gender} therapist, but the chosen therapist is ${staff.gender}`
+              );
+              continue;
+            }
+
+            const { data: assignment, error: assignmentLookupError } =
+              await adminClient
+                .from("booking_assignments")
+                .select("id")
+                .eq("participant_id", participant.id)
+                .single();
+
+            if (assignmentLookupError || !assignment) {
+              skipped.push(
+                `${label}: assignment row missing${
+                  assignmentLookupError
+                    ? ` (${assignmentLookupError.message})`
+                    : ""
+                }`
+              );
+              continue;
+            }
+
+            const { error: assignmentUpdateError } = await adminClient
               .from("booking_assignments")
               .update({ assigned_staff_id: staffId, status: "assigned" })
               .eq("id", assignment.id);
+
+            if (assignmentUpdateError) {
+              skipped.push(`${label}: ${assignmentUpdateError.message}`);
+              continue;
+            }
 
             await adminClient.from("audit_logs").insert({
               actor_staff_id: actor.id,
@@ -1764,6 +1929,49 @@ export async function createManualBooking(
               .update({ assignment_status: newStatus })
               .eq("id", result.bookingId);
           }
+
+          // Never silent again: if a selection could not be applied, say so
+          // loudly. The booking still exists and the admin can assign from the
+          // booking page, but they must be able to find out that they need to.
+          if (skipped.length > 0) {
+            // ⛔ console.error ALONE IS NOT VISIBILITY. This file already
+            // records (see the restore sweep, ~:1159) that the server and edge
+            // Sentry configs register no console-capture integration, so a
+            // console line here reaches Cloudflare's log stream and nothing
+            // else — no admin ever sees it. An operational event reaches
+            // /admin/operations AND the nav failure counter, which is the
+            // house pattern for "someone must act on this" (see the
+            // scheduled-emails route). The console line is kept as the
+            // matching log entry, not as the alert.
+            console.error(
+              `[createManualBooking] Booking ${result.bookingId}: ${skipped.length} therapist selection(s) NOT applied — assign them from the booking page. ${skipped.join("; ")}`
+            );
+            await recordOperationalEvent(adminClient, {
+              eventType: "therapist_selection_not_applied",
+              severity: "warning",
+              summary: `${skipped.length} of ${therapistAssignments.filter((id) => id.length > 0).length} therapist selection(s) could not be applied to this booking. Assign them from the booking page.`,
+              bookingId: result.bookingId,
+              staffId: actor.id,
+              safeContext: {
+                skipped_count: skipped.length,
+                applied_count: appliedCount,
+                reasons: skipped.join("; ").slice(0, 400),
+              },
+            }).catch(() => undefined);
+          }
+        } else {
+          console.error(
+            `[createManualBooking] Booking ${result.bookingId}: therapist selections were made but no participant rows were found; nothing was assigned.`
+          );
+          await recordOperationalEvent(adminClient, {
+            eventType: "therapist_selection_not_applied",
+            severity: "error",
+            summary:
+              "Therapist selections were made for this booking but no participant rows were found, so nothing was assigned. Assign from the booking page.",
+            bookingId: result.bookingId,
+            staffId: actor.id,
+            safeContext: { skipped_count: 0, applied_count: 0, reasons: "no participant rows" },
+          }).catch(() => undefined);
         }
       }
     } catch (assignmentError) {
@@ -1914,22 +2122,14 @@ export async function createManualBooking(
 /**
  * D-051 - the columns `rescheduleBooking` reads and writes back.
  *
- * Deliberately loose: the action SELECTs `*` so the audit trail records the
- * whole row before and after, and a narrowed type here would only invite the
- * "column not selected reads as undefined" mistake in the opposite direction.
+ * The action SELECTs `*` so the audit trail records the whole row before and
+ * after — which means the generated row IS the shape, and naming it here keeps
+ * the type honest without narrowing anything. This used to be a hand-written
+ * subset intersected with `Record<string, unknown>`; that catch-all let a
+ * mistyped column read as `unknown` rather than fail, and made the row
+ * unwritable to the `jsonb` audit columns.
  */
-type BookingRescheduleRecord = {
-  id: string;
-  status: string;
-  booking_date: string;
-  start_time: string | null;
-  end_time: string | null;
-  total_duration_mins: number | null;
-  reschedule_status: string | null;
-  manage_token_hash: string | null;
-  service_city: string | null;
-  recurring_template_id: string | null;
-} & Record<string, unknown>;
+type BookingRescheduleRecord = BookingRow;
 
 const RESCHEDULE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const RESCHEDULE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -2194,7 +2394,9 @@ export async function rescheduleBooking(formData: FormData) {
     };
   }
 
-  const updatePayload: Record<string, unknown> = {
+  // Typed as the generated Update shape: every key added below is checked
+  // against the live schema instead of being an unchecked string.
+  const updatePayload: BookingUpdate = {
     booking_date: nextDate,
     start_time: nextTime + ":00",
     end_time: nextEndTime + ":00",

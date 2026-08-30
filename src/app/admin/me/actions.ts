@@ -18,10 +18,14 @@ export interface SaveNotificationSettingsState {
   error?: string;
 }
 
-interface StoredPrefs {
+// A `type` alias, not an `interface`: this object is written to the jsonb
+// column `staff_profiles.business_notification_prefs` and copied into the
+// audit entry, both typed `Json`. An interface has no implicit index
+// signature and so is not assignable to `Json`; this equivalent alias is.
+type StoredPrefs = {
   enabled?: boolean;
   types?: Record<string, boolean>;
-}
+};
 
 /**
  * Persists the signed-in Owner/Admin's own business-notification settings.

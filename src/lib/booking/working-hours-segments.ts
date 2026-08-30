@@ -34,12 +34,20 @@ export interface DaySchedule {
   breaks: DayBreak[];
 }
 
-/** One stored segment. `day_of_week` / `override_date` belong to the caller. */
-export interface SegmentRow {
+/**
+ * One stored segment. `day_of_week` / `override_date` belong to the caller.
+ *
+ * Declared as a `type` alias, not an `interface`, on purpose: these rows are
+ * handed straight to the `save_availability_day` / `save_staff_availability_day`
+ * RPCs whose `p_segments` argument is typed `Json` (jsonb). An interface has no
+ * implicit index signature, so it is not assignable to `Json`; an equivalent
+ * object type alias is. Keep it a `type`.
+ */
+export type SegmentRow = {
   start_time: string;
   end_time: string;
   is_working_day: boolean;
-}
+};
 
 export interface ScheduleValidation {
   errors: string[];

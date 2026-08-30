@@ -60,10 +60,33 @@ import {
   canManageSensitiveClientNotes,
   canViewAssignedHealthNotes,
 } from "@/lib/auth/rbac";
+import type { Database } from "@/lib/supabase/database.types";
 import type { BookingRecord } from "../types";
 import type { RestoreContext } from "./NextActionButton";
 
 type Profile = NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+
+// ⛔ SAFETY-RELEVANT. `booking_assignments.required_therapist_gender` is NOT
+// NULL on `staff_gender_type`, an enum with exactly two members — it is what
+// records a client's requirement for a male or female therapist. But
+// `StaffProfile.gender` (rbac.ts) is typed as a plain `string`, so the compiler
+// cannot prove the value we filter on is one of the two. Validate it instead of
+// asserting it: a gender that is not a member of the enum means "this staff row
+// matches NOTHING", never "match anything". `null` therefore has to fail CLOSED
+// below — the booking does not open on a claim basis — because the alternative
+// failure mode is opening a booking that asked for the other gender.
+//
+// ⚠️ Deliberately duplicated from ../bookings-list-data.ts, alongside
+// `normalizeClaimableBooking`, whose two copies carry the same note.
+type StaffGender = Database["public"]["Enums"]["staff_gender_type"];
+
+// `satisfies` (not a cast): if the generated enum ever drops or renames a member
+// this list stops compiling, instead of silently filtering on a dead value.
+const STAFF_GENDERS = ["male", "female"] as const satisfies readonly StaffGender[];
+
+function asStaffGender(gender: string): StaffGender | null {
+  return STAFF_GENDERS.find((member) => member === gender) ?? null;
+}
 
 // `cancelled_at` is named here because `BookingRecord` (../types.ts) declares
 // it. That pairing is load-bearing, not tidiness: the row arrives through an
@@ -171,15 +194,19 @@ export async function getScopedBookingRelation(
     return { canOpen: true, claimableOnly: false };
   }
 
-  const { count: claimableCount } = canClaimAssignments(profile)
-    ? await adminClient
-        .from("booking_assignments")
-        .select("id", { count: "exact", head: true })
-        .eq("booking_id", bookingId)
-        .eq("status", "unassigned")
-        .is("assigned_staff_id", null)
-        .eq("required_therapist_gender", profile.gender)
-    : { count: 0 };
+  // ⛔ Gender is the claim gate, so an unrecognised gender opens NOTHING on a
+  // claim basis. See `asStaffGender` at the top of the file.
+  const claimGender = asStaffGender(profile.gender);
+  const { count: claimableCount } =
+    canClaimAssignments(profile) && claimGender
+      ? await adminClient
+          .from("booking_assignments")
+          .select("id", { count: "exact", head: true })
+          .eq("booking_id", bookingId)
+          .eq("status", "unassigned")
+          .is("assigned_staff_id", null)
+          .eq("required_therapist_gender", claimGender)
+      : { count: 0 };
 
   return {
     canOpen: (claimableCount ?? 0) > 0,

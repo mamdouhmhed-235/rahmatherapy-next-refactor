@@ -8,6 +8,15 @@ const LONG_TOKEN_PATTERN = /\b(?:eyJ[A-Za-z0-9_-]+|[A-Za-z0-9_-]{24,})\b/g;
 const PHONE_PATTERN =
   /(?:\+?\d[\d\s().-]{8,}\d)|(?:\b0\d{3}\s?\d{3}\s?\d{3,4}\b)/g;
 
+// Stack-frame fields that are code paths, not personal data. `filename` was
+// being blanked because SENSITIVE_KEY_PATTERN's `name` alternative matches it
+// as a substring — so every crash report arrived with its file name
+// `[Filtered]`, and unrelated errors grouped together as if they were one bug.
+// ⛔ These are still passed through `redactText`, NOT returned raw: a bundled
+// path can carry a long token-shaped chunk name, and this file's job is to
+// assume nothing is clean.
+const SAFE_REDACTED_KEYS = new Set(["filename", "fileName", "abs_path", "module"]);
+
 const SAFE_USER_KEYS = new Set(["id"]);
 const SAFE_CONTEXT_KEYS = new Set([
   "route",
@@ -63,6 +72,7 @@ function scrubValue(value: unknown, key = "", depth = 0): unknown {
 
   if (typeof value === "string") {
     if (SAFE_SENTRY_KEYS.has(key)) return value;
+    if (SAFE_REDACTED_KEYS.has(key)) return redactText(value);
     return SENSITIVE_KEY_PATTERN.test(key) ? "[Filtered]" : redactText(value);
   }
 
@@ -78,6 +88,12 @@ function scrubValue(value: unknown, key = "", depth = 0): unknown {
 
   for (const [entryKey, entryValue] of Object.entries(value)) {
     if (SAFE_CONTEXT_KEYS.has(entryKey)) {
+      scrubbed[entryKey] =
+        typeof entryValue === "string" ? redactText(entryValue) : entryValue;
+      continue;
+    }
+
+    if (SAFE_REDACTED_KEYS.has(entryKey)) {
       scrubbed[entryKey] =
         typeof entryValue === "string" ? redactText(entryValue) : entryValue;
       continue;

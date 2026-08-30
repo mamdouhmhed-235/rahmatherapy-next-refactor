@@ -105,7 +105,7 @@ function stubClient() {
           id: "al1",
           action_type: "staff_profile_updated",
           created_at: "2026-01-02T09:30:00.000Z",
-          actor_id: "s1",
+          actor_staff_id: "s1",
         },
       ],
       error: null,

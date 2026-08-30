@@ -340,7 +340,7 @@ export default async function PrivacyPage({
   // Authorship lookup: resolve created_by_staff_id to a display name so the
   // request note can show "from customer email" vs "transcribed by Aisha".
   const staffNameById = new Map(
-    staffProfiles.map((staff) => [staff.id, staff.full_name])
+    staffProfiles.map((staff) => [staff.id, staff.name])
   );
 
   // ─── Group requests by status (this page of the possibly-filtered queue) ──

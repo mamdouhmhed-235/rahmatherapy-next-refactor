@@ -57,6 +57,7 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 import { getTodayIsoDate } from "@/app/admin/bookings/_helpers";
 import { fromPence, toPence } from "@/lib/booking/travel-fee";
 import { checkSeriesSlots } from "@/lib/booking/availability";
@@ -99,26 +100,41 @@ function emptySummary(): ExtendSummary {
   return { templatesExtended: 0, occurrencesCreated: 0, skipped: 0 };
 }
 
-interface TemplateRow {
-  id: string;
-  client_id: string;
-  service_id: string;
-  bound_therapist_id: string | null;
-  anchor_start_time: string;
-  cadence: string;
-  end_type: string;
-  end_count: number | null;
-  end_date: string | null;
-  participant_gender: string;
-  required_therapist_gender: string;
-  service_address_line1: string | null;
-  service_city: string | null;
-  service_postcode: string | null;
-  horizon_through_date: string;
-  /** Item 8 Phase 4 — the series' standing travel charge, added to every
-   *  occurrence this cron materialises. */
-  travel_fee: number | string | null;
-}
+/**
+ * The template columns this route reads, taken straight from the generated
+ * schema rather than re-declared by hand.
+ *
+ * ⛔ Why `Pick` off the generated Row and not a hand-written interface: the
+ * hand-written one said `participant_gender: string` where the database says
+ * `staff_gender_type` ("male" | "female"), and `travel_fee: number | string |
+ * null` where the column is `numeric NOT NULL`. Both drifts were invisible
+ * because the client was untyped. The gender one mattered: the two genders ride
+ * all the way down into the `booking_participants` and `booking_assignments`
+ * inserts below, and a plain `string` there is a value the database would have
+ * rejected at runtime with nothing catching it first.
+ *
+ * Item 8 Phase 4 — `travel_fee` is the series' standing travel charge, added to
+ * every occurrence this cron materialises.
+ */
+type TemplateRow = Pick<
+  Database["public"]["Tables"]["recurring_booking_templates"]["Row"],
+  | "id"
+  | "client_id"
+  | "service_id"
+  | "bound_therapist_id"
+  | "anchor_start_time"
+  | "cadence"
+  | "end_type"
+  | "end_count"
+  | "end_date"
+  | "participant_gender"
+  | "required_therapist_gender"
+  | "service_address_line1"
+  | "service_city"
+  | "service_postcode"
+  | "horizon_through_date"
+  | "travel_fee"
+>;
 
 interface TemplateOutcome {
   extended: boolean;
@@ -221,7 +237,9 @@ export async function POST(request: Request): Promise<Response> {
   // ⛔ Reported separately from `failures` — see TemplateOutcome.unstaffable.
   const unstaffable: string[] = [];
 
-  for (const template of (templates ?? []) as TemplateRow[]) {
+  // No cast: the select list above and `TemplateRow` are now the same set of
+  // generated columns, so the compiler checks them against each other.
+  for (const template of templates ?? []) {
     const outcome = await extendTemplate(
       supabase,
       template,
@@ -332,6 +350,38 @@ async function extendTemplate(
   // moved to. Keying on the slot means a moved visit still claims its slot.
   const existingDates = new Set(rows.map(slotOf));
 
+  // ⛔ THE END CONDITION MUST BE PRESENT WHEN THE END TYPE NEEDS IT.
+  //
+  // `end_count` and `end_date` are both NULLABLE columns, and each is required
+  // by exactly one end type. Two CHECK constraints on the table already enforce
+  // that pairing (`rbt_end_count_when_after_count`, `rbt_end_date_when_until_date`),
+  // so these two guards should never fire — they exist because of what happens
+  // if one ever does. `compute_occurrence_dates` does not defend itself:
+  //
+  //   • after_count with a NULL count — the loop's `v_count >= p_end_count`
+  //     evaluates to NULL, which is not TRUE, so it NEVER EXITS EARLY and the
+  //     series is materialised all the way to the horizon. A client who booked
+  //     six visits would silently be given twelve weeks of them.
+  //   • until_date with a NULL date — `LEAST(NULL, p_horizon_end)` is
+  //     `p_horizon_end` in Postgres (LEAST skips NULLs), so the end date is
+  //     simply ignored and the series runs past the date it was meant to stop.
+  //
+  // Both failures create real appointments for real clients. Refusing to extend
+  // and reporting it is the safe direction: the horizon is left where it is and
+  // the series is retried tomorrow, so nothing is lost by waiting for a human.
+  if (template.end_type === "after_count" && template.end_count === null) {
+    return fail(
+      "end_type is 'after_count' but end_count is NULL — refusing to extend, " +
+        "the occurrence walk would run to the full horizon instead of stopping at the count"
+    );
+  }
+  if (template.end_type === "until_date" && template.end_date === null) {
+    return fail(
+      "end_type is 'until_date' but end_date is NULL — refusing to extend, " +
+        "the occurrence walk would run past the date the series was meant to end"
+    );
+  }
+
   // 2. Replay the sequence from the ANCHOR — see this file's header. Calling the
   //    deployed function rather than re-implementing the walk in TypeScript is
   //    deliberate: monthly cadence clamps month-ends inside Postgres and an
@@ -343,8 +393,15 @@ async function extendTemplate(
       p_cadence: template.cadence,
       p_horizon_end: newHorizonThrough,
       p_end_type: template.end_type,
-      p_end_count: template.end_count,
-      p_end_date: template.end_date,
+      // After the guards above, each fallback is only reachable for an end type
+      // that provably ignores that argument (see the function body: `p_end_count`
+      // is read only under `p_end_type = 'after_count'`, `p_end_date` only under
+      // `until_date`). They are chosen so that even if that ever stopped being
+      // true the walk would produce NOTHING rather than too much — a count of 0
+      // exits the loop immediately, and an end date of the anchor clamps the walk
+      // to the one date that already exists.
+      p_end_count: template.end_count ?? 0,
+      p_end_date: template.end_date ?? anchorDate,
     }
   );
 
@@ -485,7 +542,9 @@ async function extendTemplate(
         dates: candidates,
         startTime: template.anchor_start_time,
         serviceIds: [service.slug],
-        participantGenders: [template.participant_gender as "male" | "female"],
+        // No cast needed: `participant_gender` is the `staff_gender_type` enum,
+        // which is exactly "male" | "female".
+        participantGenders: [template.participant_gender],
         city: template.service_city ?? "",
         boundStaffId: assignedStaffId,
       },

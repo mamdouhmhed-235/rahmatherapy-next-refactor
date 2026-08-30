@@ -90,7 +90,11 @@ export interface PrivacySensitiveNote {
 
 export interface PrivacyStaffName {
   id: string;
-  full_name: string;
+  // F-04B-04: `staff_profiles` has NO `full_name` column — it is `name`. The old
+  // shape was asserted onto the row by `.returns<PrivacyStaffName[]>()`, so tsc
+  // happily type-checked a field the database has never had. `clients` genuinely
+  // does have `full_name`, which is how the two got crossed.
+  name: string;
 }
 
 export interface PrivacyQueueFilters {
@@ -246,14 +250,25 @@ export async function getPrivacyPageData(
             .filter((id): id is string => Boolean(id))
         )
       );
-      const { data: staffProfiles } =
+      // F-04B-04: was `.select("id, full_name")`, which PostgREST rejects with
+      // 42703. The old code discarded `error`, so the failure arrived as an
+      // empty list and every "Requested by …" line rendered blank. Read the
+      // error too, so a future mismatch is loud instead of silent.
+      const { data: staffProfiles, error: staffProfilesError } =
         staffIds.length > 0
           ? await adminClient
               .from("staff_profiles")
-              .select("id, full_name")
+              .select("id, name")
               .in("id", staffIds)
               .returns<PrivacyStaffName[]>()
-          : { data: [] as PrivacyStaffName[] };
+          : { data: [] as PrivacyStaffName[], error: null };
+
+      if (staffProfilesError) {
+        console.error(
+          "[privacy-data] staff name lookup failed; author names will be blank.",
+          staffProfilesError
+        );
+      }
 
       return {
         requests,

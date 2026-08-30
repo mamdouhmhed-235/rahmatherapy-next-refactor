@@ -1,6 +1,8 @@
 // SERVER ONLY — never import this in client components or expose to the browser.
 import { createClient } from "@supabase/supabase-js";
 
+import type { Database } from "./database.types";
+
 import { getServerEnv } from "@/lib/env/server";
 
 /**
@@ -18,7 +20,7 @@ export function createSupabaseAdminClient() {
     );
   }
 
-  return createClient(url, serviceRoleKey, {
+  return createClient<Database>(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

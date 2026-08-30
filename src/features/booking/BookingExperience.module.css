@@ -765,7 +765,11 @@
 .field select,
 .field textarea {
   width: 100%;
-  border: 1px solid #dcd1bf;
+  /* WCAG 1.4.11 (Non-text Contrast) needs 3:1 for a control's boundary.
+     #dcd1bf on --rahma-surface measured 1.36:1 in-browser — 45% of the
+     requirement — on the form that collects contact and health details.
+     #94856c is the same warm hue at 3.26:1. */
+  border: 1px solid #94856c;
   border-radius: 12px;
   background: var(--rahma-surface);
   color: var(--rahma-charcoal);

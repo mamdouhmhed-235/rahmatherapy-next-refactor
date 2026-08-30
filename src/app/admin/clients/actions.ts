@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 import {
   canManageAllClients,
   canManageClientDestructiveOps,
@@ -42,12 +43,28 @@ const CLIENT_IDENTITY_FIELDS = [
 const CLIENT_EDIT_COLUMNS =
   "id, full_name, phone, email, gender_preference, address, postcode, city, area, client_source, source_detail, notes, updated_at, deleted_at";
 
-interface ClientEditableRow {
+/**
+ * Row shapes straight off the generated schema. ⛔ `clients` names the person
+ * column `full_name`; `staff_profiles` names its own `name`. Mixing the two up
+ * is what produced one of the four silent HTTP 400s, so these aliases exist to
+ * make the compiler hold that line for us.
+ */
+type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
+type ClientUpdate = Database["public"]["Tables"]["clients"]["Update"];
+type BookingUpdate = Database["public"]["Tables"]["bookings"]["Update"];
+
+/**
+ * The subset `CLIENT_EDIT_COLUMNS` selects. Declared as a `type` (not an
+ * `interface`) on purpose: audit rows write it into the `jsonb` `before_state`
+ * column, and only a type alias structurally satisfies the generated `Json`
+ * union.
+ */
+type ClientEditableRow = {
   id: string;
   full_name: string;
   phone: string | null;
   email: string | null;
-  gender_preference: string;
+  gender_preference: Database["public"]["Enums"]["gender_preference_type"];
   address: string | null;
   postcode: string | null;
   city: string | null;
@@ -57,6 +74,45 @@ interface ClientEditableRow {
   notes: string | null;
   updated_at: string;
   deleted_at: string | null;
+};
+
+/**
+ * The columns `updateClient` may write, in the order the edit form sends them —
+ * which is also the key order the `client_updated` audit row records.
+ */
+const CLIENT_EDITABLE_FIELDS = [
+  "full_name",
+  "email",
+  "gender_preference",
+  "phone",
+  "address",
+  "postcode",
+  "city",
+  "area",
+  "client_source",
+  "source_detail",
+  "notes",
+] as const;
+
+type ClientEditableField = (typeof CLIENT_EDITABLE_FIELDS)[number];
+
+/**
+ * Copy one field from the submitted patch onto `changed`, but only when it is
+ * still present (the identity gate may have dropped it) AND actually differs
+ * from what is stored. Generic over the field so the compiler checks each value
+ * against its real column type instead of widening the whole patch to `string`.
+ */
+function collectChangedClientField<K extends ClientEditableField>(
+  field: K,
+  patch: ClientUpdate,
+  current: ClientEditableRow,
+  changed: ClientUpdate
+) {
+  const next = patch[field];
+  if (next === undefined) return;
+  const previous: ClientEditableRow[K] = current[field];
+  if (next === previous) return;
+  changed[field] = next;
 }
 
 const PRIVACY_REQUEST_TYPES = [
@@ -382,7 +438,9 @@ export async function updateClient(
     };
   }
 
-  const patch: Record<string, string | null> = {
+  // Typed as the generated `clients` Update row, so every key below is checked
+  // against the live schema before it ever reaches PostgREST.
+  const patch: ClientUpdate = {
     full_name: parsed.data.full_name,
     email: normalizeEmail(parsed.data.email),
     gender_preference: parsed.data.gender_preference,
@@ -421,11 +479,10 @@ export async function updateClient(
     }
   }
 
-  const changed = Object.fromEntries(
-    Object.entries(patch).filter(
-      ([field, value]) => value !== current[field as keyof ClientEditableRow]
-    )
-  );
+  const changed: ClientUpdate = {};
+  for (const field of CLIENT_EDITABLE_FIELDS) {
+    collectChangedClientField(field, patch, current, changed);
+  }
 
   if (Object.keys(changed).length > 0) {
     const { error: updateError } = await adminClient
@@ -468,12 +525,14 @@ export interface BulkDeleteClientsState {
   error?: string;
 }
 
-/** Full pre-delete snapshot — `before_state` on the audit row. */
-type ClientFullRow = Record<string, unknown> & {
-  id: string;
-  full_name: string;
-  deleted_at?: string | null;
-};
+/**
+ * Full pre-delete snapshot — `before_state` on the audit row. This is what
+ * `select("*")` actually returns, so it is the generated row type rather than a
+ * hand-written `Record<string, unknown>`: the loose version hid both the real
+ * column set and the fact that `unknown` values cannot be written to a `jsonb`
+ * column.
+ */
+type ClientFullRow = ClientRow;
 
 /**
  * ⚠️ `recurring_booking_templates` HAS ARRIVED — `20260802122636_c02_recurring
@@ -642,7 +701,7 @@ export async function deleteClient(
   // The plan's `cancellation_reason = 'client_deleted'` is deliberately not
   // sent: no migration anywhere in the programme creates that column, and the
   // reason already rides on this call's audit row (`after_state.reason`).
-  const cascadeOpenBookings = (payload: Record<string, string>) =>
+  const cascadeOpenBookings = (payload: BookingUpdate) =>
     adminClient
       .from("bookings")
       .update(payload)

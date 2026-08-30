@@ -7,6 +7,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
 import { sendEnquiryLoggedEmail } from "@/lib/email/notifications";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
+import type { Database } from "@/lib/supabase/database.types";
+
+type EnquiryUpdate = Database["public"]["Tables"]["enquiries"]["Update"];
 
 const ENQUIRY_SOURCES = [
   "website",
@@ -157,7 +160,9 @@ export async function updateEnquiryStatus(formData: FormData) {
   // the first transition to 'contacted'. Later transitions (contacted→booked etc.) leave
   // the timestamp unchanged so the time-to-first-contact metric measures the original
   // contact event, not the most recent status edit.
-  const updatePayload: Record<string, unknown> = { status };
+  // Typed at the declaration (not cast at the call) so the compiler actually
+  // checks every key written below against the real `enquiries` columns.
+  const updatePayload: EnquiryUpdate = { status };
   if (status === "contacted" && beforeState.first_contacted_at == null) {
     updatePayload.first_contacted_at = new Date().toISOString();
   }

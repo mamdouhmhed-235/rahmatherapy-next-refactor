@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { HomeHeroVideo } from "./HomeHeroVideo";
 import { ArrowRight } from "lucide-react";
 
 const trustPills = [
@@ -11,17 +13,7 @@ const trustPills = [
 export function HomeHero() {
   return (
     <section className="relative mt-[calc(var(--site-header-height)_*_-1)] min-h-[100svh] overflow-hidden bg-rahma-charcoal">
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="auto"
-        poster="/images/home/homepage-hero-poster-v3.jpg"
-      >
-        <source src="/videos/homepage-hero-v3.mp4" type="video/mp4" />
-      </video>
+      <HomeHeroVideo />
       {/* Neutral (non-blue) scrim for white-text legibility. Two soft gradients —
           a left lean (text is left-aligned) plus a bottom anchor — kept smooth so
           they read as a cinematic vignette, not a hard dark panel. The flame /

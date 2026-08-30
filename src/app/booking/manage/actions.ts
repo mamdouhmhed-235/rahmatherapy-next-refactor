@@ -9,6 +9,9 @@ import {
 } from "@/lib/email/notifications";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
+import type { Database, Json } from "@/lib/supabase/database.types";
+
+type AuditLogInsert = Database["public"]["Tables"]["audit_logs"]["Insert"];
 
 export interface CustomerManageActionState {
   error?: string;
@@ -34,21 +37,29 @@ function appendCustomerNote(current: string | null, note: string) {
   return [current, timestampedNote(note)].filter(Boolean).join("\n\n");
 }
 
+// `audit_logs.before_state` / `.after_state` are jsonb columns, so the states
+// are typed as `Json` rather than `unknown`: an `unknown` here compiled but
+// could never actually be stored, and PostgREST would have rejected it at
+// runtime. `actor_staff_id: null` is the honest value — a customer acting on
+// their own manage link has no staff row.
 async function insertCustomerAudit(
   bookingId: string,
   actionType: string,
-  beforeState: unknown,
-  afterState: unknown
+  beforeState: Json,
+  afterState: Json
 ) {
   const supabase = createSupabaseAdminClient();
-  await supabase.from("audit_logs").insert({
+  // Typed at the declaration (not cast at the call) so the compiler actually
+  // checks these keys against the real `audit_logs` columns.
+  const auditRow: AuditLogInsert = {
     actor_staff_id: null,
     action_type: actionType,
     target_type: "bookings",
     target_id: bookingId,
     before_state: beforeState,
     after_state: afterState,
-  });
+  };
+  await supabase.from("audit_logs").insert(auditRow);
 }
 
 export async function addCustomerManageNote(
