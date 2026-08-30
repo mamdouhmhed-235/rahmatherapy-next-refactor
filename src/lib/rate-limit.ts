@@ -62,6 +62,25 @@ export const AVAILABILITY_RATE_LIMIT: RateLimitWindow[] = [
   AVAILABILITY_RATE_LIMIT_SUSTAINED,
 ];
 
+/**
+ * Admin sign-in. Tighter than the booking limits because the cost profile is
+ * inverted: a blocked customer loses a booking, whereas an unblocked guesser
+ * gets unlimited attempts at an account that can read every client's health
+ * notes. Five tries per 15 minutes is generous for a real person who has
+ * forgotten which password they used, and useless for a script.
+ *
+ * ⚠️ Supabase's own auth rate limiting does NOT cover this. Sign-in runs
+ * server-side on Cloudflare, so Supabase sees the Worker's address rather than
+ * the visitor's and cannot tell one guesser from all our traffic.
+ */
+export const ADMIN_LOGIN_RATE_LIMIT: RateLimitWindow[] = [
+  { limit: 5, windowSeconds: 900 },
+  { limit: 20, windowSeconds: 3600 },
+];
+
+export const RATE_LIMITED_LOGIN_MESSAGE =
+  "Too many sign-in attempts. Please wait a few minutes and try again.";
+
 export const RATE_LIMITED_BOOKING_MESSAGE = `Too many booking attempts. Please try again in a few minutes, or call us on ${contactLinks.phone.value}.`;
 
 export const RATE_LIMITED_AVAILABILITY_MESSAGE = `Too many availability checks. Please try again in a few minutes, or call us on ${contactLinks.phone.value}.`;
@@ -135,7 +154,30 @@ export async function checkRateLimit(
 ): Promise<boolean> {
   // Cloudflare sets this and clients cannot forge it. X-Forwarded-For is
   // spoofable and must never be the identity source.
-  const ip = request.headers.get("CF-Connecting-IP");
+  return checkRateLimitForIp(
+    request.headers.get("CF-Connecting-IP"),
+    scope,
+    windows
+  );
+}
+
+/**
+ * The same check, given an address directly.
+ *
+ * ⛔ Exists because a SERVER ACTION has no `Request` to read. The admin sign-in
+ * is an action, so without this the only options were to fabricate a Request or
+ * to leave sign-in with no limit at all — and it had none.
+ *
+ * ⛔ Callers must pass Cloudflare's `CF-Connecting-IP` and nothing else.
+ * `X-Forwarded-For` is client-supplied and would let a guesser reset their own
+ * budget on every attempt, which is worse than no limit because it would look
+ * protected.
+ */
+export async function checkRateLimitForIp(
+  ip: string | null,
+  scope: string,
+  windows: RateLimitWindow[]
+): Promise<boolean> {
   if (!ip) return true;
 
   const namespace = getRateLimiterNamespace();
