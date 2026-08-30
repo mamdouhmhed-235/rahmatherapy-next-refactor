@@ -47,6 +47,16 @@ export default async function PublicLayout({
         {children}
       </main>
       <SiteFooter />
+      {/* ⛔ The banner is `position: fixed`, so it sits OUTSIDE normal flow and
+          covered the footer's last line — the copyright and credit — with no way
+          to scroll past it on a phone. Phase 12's own commit message records that
+          an earlier version of this banner had exactly this bug and claimed a
+          `.has-maintenance-banner` fix; that class was never actually written.
+          This spacer is that fix: real space at the end of the document, so the
+          footer can always be read in full. */}
+      {MAINTENANCE_MODE && (
+        <div aria-hidden className="h-[var(--maintenance-banner-h)]" />
+      )}
       {/* ⛔ Under MAINTENANCE_MODE the booking dialog is NOT MOUNTED AT ALL —
           not hidden, not disabled. There is nothing on the page to open, so
           every `?booking=1` link and every "Book an appointment" button lands

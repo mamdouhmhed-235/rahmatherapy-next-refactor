@@ -472,3 +472,39 @@ a[class*="border-rahma-green/30"] {
     scroll-behavior: auto !important;
   }
 }
+
+/* Height reserved for the fixed "still being built" banner (MaintenanceBanner).
+   ⛔ Read by BOTH the consent card, which lifts clear of it, and the spacer at
+   the end of the public layout, which stops it covering the footer. One
+   definition, two consumers — if they ever disagree, the banner covers
+   something again, which is the exact bug this replaced.
+
+   ⛔ It lives HERE and not in styles/tokens.css: that file is an admin
+   design-token reference that NOTHING imports, so a variable defined there
+   silently resolves to "" on every public page. That mistake was made once.
+
+   ⛔ THESE ARE MEASURED HEIGHTS, NOT ESTIMATES. Taken from the rendered banner
+   at each width; a first attempt guessed 56px and still left 42% of the banner
+   covered on a phone. The banner's copy drops progressively (the "To get in
+   touch" and "(call, text, or WhatsApp)" spans hide below sm/md), so it steps
+   down at exactly these two breakpoints:
+       < 640px  97px   three lines
+       >= 640px 60px   two lines
+       >= 1024px 46px  one line
+   A few pixels of headroom are included. ⚠️ If the banner's wording changes,
+   re-measure these — nothing enforces them automatically. */
+:root {
+  --maintenance-banner-h: calc(100px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  :root {
+    --maintenance-banner-h: calc(64px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --maintenance-banner-h: calc(50px + env(safe-area-inset-bottom));
+  }
+}

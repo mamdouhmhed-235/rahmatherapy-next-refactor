@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
 import { ConsentActionButton } from "./ConsentActionButton";
 import { ConsentPreferencesPanel } from "./ConsentPreferencesPanel";
 import {
@@ -48,7 +49,17 @@ function BannerCard() {
   return (
     <section
       aria-label="Cookie choices"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[900] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3"
+      // ⛔ Both this and MaintenanceBanner are `fixed ... bottom-0`, and this one
+      // sits at z-900 against the banner's z-95 — so before this offset the
+      // consent card covered the banner almost entirely (measured: 83% of it on
+      // a phone, with the phone number unreachable on phone AND desktop). That
+      // buried the one message telling a visitor how to reach the clinic, at
+      // exactly the moment booking is switched off and phoning is the only way
+      // through. The consent card has to stay on top — it is the thing that must
+      // be reachable — so the fix is to lift it clear rather than reorder them.
+      className={`pointer-events-none fixed inset-x-0 z-[900] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 ${
+        MAINTENANCE_MODE ? "bottom-[var(--maintenance-banner-h)]" : "bottom-0"
+      }`}
     >
       {/* The entrance is CSS, and `motion-reduce:animate-none` is the whole of
           its prefers-reduced-motion handling. The public-page convention is
