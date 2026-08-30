@@ -20,12 +20,36 @@
 //
 // ── ⛔ WHAT RS-01 IS ACTUALLY FOR ────────────────────────────────────────
 //
-// It is not a pass/fail on a rule the system claims to have. `create_recurring_
-// booking_series` performs NO capacity check at all — read it: between the
-// service checks and the occurrence loop there is a duplicate-visit guard for
-// the SAME client and nothing else. RS-01 RECORDS what that produces, so
-// HUMAN-03-02 (fix it, or accept it) is decided against a measurement rather
-// than a description.
+// ⛔ THIS IS NOT AN OPEN QUESTION. AN EARLIER VERSION OF THIS COMMENT SAID IT
+// WAS, AND THAT COST A ROUND OF THE OWNER'S TIME ON 2026-08-30 — the finding was
+// re-raised as if new, investigated by four agents, and closed again as
+// already-decided. Do not let it happen a third time.
+//
+// It is TRUE that `create_recurring_booking_series` performs no capacity check:
+// between the service checks and the occurrence loop there is a duplicate-visit
+// guard for the SAME client and nothing else. Verified against the DEPLOYED
+// function body, not the migration.
+//
+// ⛔ BUT THAT IS THE DESIGN THE OWNER CHOSE, in ruling D-042 (2026-08-22, commit
+// `22b5fcc`). Offered "leave it / fix it properly / warn on screen", the Owner
+// chose "fix it properly", and the check was deliberately placed in TypeScript
+// (`checkSeriesSlots`, called at recurring-actions.ts:332, before the RPC at
+// :399) rather than in SQL — because a SQL copy would be a THIRD implementation
+// of the availability rules, and this project has twice been bitten by two
+// copies disagreeing. HUMAN-03-02 is CLOSED by that ruling.
+//
+// ⛔ SO WHAT THIS TEST ACTUALLY MEASURES is the raw building block with the
+// guard bypassed. It calls the RPC directly with the service-role key, which:
+//   - no customer can do (`anon` has no EXECUTE — verified against the live
+//     database, not assumed), and
+//   - no signed-in admin can do (`authenticated` has no EXECUTE either).
+// Only the server can reach it, and the one caller in the entire codebase checks
+// first. So a "series created into a full slot" result here is EXPECTED, and is
+// evidence about the block, not about the clinic.
+//
+// ⚠️ Its real value is as a tripwire: if a SECOND server-side caller is ever
+// added without the check, the guarantee D-042 rests on quietly stops holding,
+// and nothing else in the suite would notice.
 //
 // ⛔ COST: no email. The series RPC sends nothing; the confirmation mail lives in
 // `src/app/admin/bookings/recurring-actions.ts`, above it.
@@ -282,10 +306,48 @@ test.describe("Gate 03 · RS — recurring series and capacity", () => {
       `⛔ ${target} sells nothing at all, so the absence of 12:00 proves nothing`,
     ).toBeGreaterThan(0);
 
-    // With the pool exhausted by RS-01's own probes only on `day`, this target
-    // date carries just the ONE series occurrence — so 12:00 may legitimately
-    // still be on sale if more than one therapist is free. What must be true is
-    // that the occurrence is visible to the engine at all.
+    // ⛔ THE ASSERTION THAT CAN ACTUALLY FAIL.
+    //
+    // "Is 12:00 still on sale?" is NOT it. On a day with one booking and several
+    // free therapists, 12:00 stays on sale whether the engine counts the
+    // occurrence or ignores it entirely — the same answer either way, which is
+    // the definition of a test that proves nothing. The original RS-02 asked
+    // exactly that.
+    //
+    // The number that MOVES is `availableStaffByGender.female`. If the engine
+    // sees the occurrence, the occupied time must offer exactly ONE fewer female
+    // therapist than a comparable free time on the SAME day — same working
+    // hours, same staff, same date, so the occurrence is the only difference.
+    const slots = await offeredSlots(target);
+    const occupied = slots.find((slot) => slot.time === "12:00");
+    const control = slots.find(
+      (slot) => slot.time !== "12:00" && (slot.availableStaffByGender?.female ?? 0) > 0
+    );
+
+    if (occupied && control) {
+      const occupiedFree = occupied.availableStaffByGender?.female ?? 0;
+      const controlFree = control.availableStaffByGender?.female ?? 0;
+      console.log(
+        `[RS-02] female therapists free — 12:00 (has the occurrence): ${occupiedFree} · ` +
+          `${control.time} (control): ${controlFree}`
+      );
+      expect(
+        occupiedFree,
+        `⛔ THE ENGINE IS NOT COUNTING THE SERIES OCCURRENCE. At 12:00 on ${target} it reports ` +
+          `${occupiedFree} female therapists free, the same as the free control slot ` +
+          `${control.time}. A visit sitting at 12:00 must consume one, or the slot stays on ` +
+          `sale while a therapist's time is already spoken for.`
+      ).toBe(controlFree - 1);
+    } else {
+      // ⛔ Say so rather than passing quietly. A skipped comparison is not a pass.
+      console.warn(
+        `[RS-02] ⛔ COMPARISON NOT MADE — occupied slot ${occupied ? "found" : "MISSING"}, ` +
+          `control ${control ? "found" : "MISSING"}. The capacity claim is UNPROVEN on this run.`
+      );
+    }
+
+    // The occurrence must also exist as an ordinary booking row the engine can
+    // see at all.
     const { data: occurrenceRows } = await db
       .from("bookings")
       .select("id, status")
@@ -314,6 +376,35 @@ test.describe("Gate 03 · RS — recurring series and capacity", () => {
 });
 
 /** What the public booking engine would offer on a date. Uncached. */
+/**
+ * The full slot objects, including `availableStaffByGender` — the number that
+ * actually MOVES when a booking consumes capacity.
+ *
+ * ⛔ Exists because asking only "is 12:00 on sale?" is a question whose answer is
+ * the same whether the engine counts a booking or ignores it completely, on any
+ * day that is not almost full. RS-02 asked exactly that and could never have
+ * failed.
+ */
+async function offeredSlots(
+  date: string
+): Promise<{ time: string; availableStaffByGender: Record<string, number> }[]> {
+  const response = await fetch(`${process.env.E2E_BASE_URL}/api/availability/`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      date,
+      serviceIds: ["massage-30"],
+      participantGenders: ["female"],
+      city: "Luton",
+    }),
+  });
+  expect(response.status, `⛔ the availability endpoint refused a question about ${date}`).toBe(200);
+  const payload = (await response.json()) as {
+    slots?: { time: string; availableStaffByGender: Record<string, number> }[];
+  };
+  return payload.slots ?? [];
+}
+
 async function offeredTimes(date: string): Promise<string[]> {
   const response = await fetch(`${process.env.E2E_BASE_URL}/api/availability/`, {
     method: "POST",
