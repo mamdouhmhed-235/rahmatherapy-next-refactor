@@ -1,4 +1,6 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
+import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
 import { getPublicBookingWindow } from "@/lib/booking/booking-window-settings";
 import { getFreeTravelCities } from "@/lib/booking/free-travel-cities";
 import { getBookableServiceSlugs } from "@/lib/booking/bookable-services";
@@ -45,12 +47,24 @@ export default async function PublicLayout({
         {children}
       </main>
       <SiteFooter />
-      <BookingExperienceLoader
-        bookingWindowDays={bookingWindow?.bookingWindowDays}
-        minimumNoticeHours={bookingWindow?.minimumNoticeHours}
-        freeTravelCities={freeTravelCities}
-        bookableSlugs={bookableSlugs}
-      />
+      {/* ⛔ Under MAINTENANCE_MODE the booking dialog is NOT MOUNTED AT ALL —
+          not hidden, not disabled. There is nothing on the page to open, so
+          every `?booking=1` link and every "Book an appointment" button lands
+          on a page with no dialog, and no partly-filled form can be abandoned
+          on a step-3 dead end. The banner below says why and gives the phone
+          number and email instead.
+          ⚠️ This is the INTERFACE gate only. A direct POST to /api/bookings is
+          refused separately by `business_settings.booking_status_enabled`. */}
+      {MAINTENANCE_MODE ? (
+        <MaintenanceBanner />
+      ) : (
+        <BookingExperienceLoader
+          bookingWindowDays={bookingWindow?.bookingWindowDays}
+          minimumNoticeHours={bookingWindow?.minimumNoticeHours}
+          freeTravelCities={freeTravelCities}
+          bookableSlugs={bookableSlugs}
+        />
+      )}
       <PublicScrollbar />
       {/* Last in the tree: being late in the DOM keeps the consent question
           late in the tab order rather than ahead of the page's own content. */}

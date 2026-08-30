@@ -17,6 +17,21 @@ const nextConfig: NextConfig = {
             value: "nosniff",
           },
           {
+            // ⛔ HSTS. Without it a browser's FIRST visit to rahmatherapy.uk
+            // still goes out over plain http before the redirect upgrades it,
+            // and the staff session cookie can ride along in the clear on a
+            // shared network. The `secure` flag added to that cookie is only
+            // half the protection; this is the other half.
+            //
+            // ⚠️ `preload` is deliberately NOT set. Getting onto the browser
+            // preload list is effectively irreversible for months, and it would
+            // commit every present and future subdomain to https-only. Two
+            // years is the list's minimum age anyway, so this is the right
+            // value with or without a later decision to preload.
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains",
+          },
+          {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
           },
