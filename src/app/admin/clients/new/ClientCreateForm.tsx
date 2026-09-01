@@ -451,9 +451,11 @@ function StickySaveBar({
   pending: boolean;
   submitDisabled: boolean;
 }) {
+  // bottom-0, not bottom-14: the mobile tab bar is no longer a fixed overlay
+  // sitting in the bottom 56px, so this save bar sticks to the real bottom.
   return (
     <div
-      className="sticky bottom-14 z-30 -mx-4 mt-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 md:static md:bottom-auto md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0"
+      className="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 md:static md:bottom-auto md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0"
     >
       <div className="flex flex-col gap-2 md:ml-auto md:flex-row md:items-center md:gap-3 md:w-fit">
         <Link

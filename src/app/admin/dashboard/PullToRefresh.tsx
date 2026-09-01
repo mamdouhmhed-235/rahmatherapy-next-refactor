@@ -29,6 +29,16 @@ const PULL_DAMPING = 0.5;
 const MAX_PULL_PX = PULL_THRESHOLD_PX * 1.5;
 const REFRESH_VISUAL_MS = 600;
 
+// Below md the admin shell makes <main id="admin-main"> the scroll container,
+// so `window.scrollY` is permanently 0 there and "are we at the top?" has to
+// ask the element. `|| window.scrollY` keeps the desktop fallback (and covers
+// the element being absent), where the window is still the scroller.
+function adminScrollTop(): number {
+  if (typeof document === "undefined" || typeof window === "undefined") return 0;
+  const main = document.getElementById("admin-main");
+  return main ? main.scrollTop || window.scrollY : window.scrollY;
+}
+
 export interface PullToRefreshProps {
   children: ReactNode;
 }
@@ -72,7 +82,7 @@ export function PullToRefresh({ children }: PullToRefreshProps) {
 
   function onTouchStart(e: ReactTouchEvent) {
     if (!isMobile) return;
-    if (typeof window !== "undefined" && window.scrollY > 0) {
+    if (adminScrollTop() > 0) {
       startY.current = null;
       return;
     }
@@ -83,7 +93,7 @@ export function PullToRefresh({ children }: PullToRefreshProps) {
     if (!isMobile || startY.current === null) return;
     const currentY = e.touches[0]?.clientY ?? 0;
     const dy = currentY - startY.current;
-    if (dy <= 0 || (typeof window !== "undefined" && window.scrollY > 0)) {
+    if (dy <= 0 || adminScrollTop() > 0) {
       setPull(0);
       return;
     }

@@ -200,8 +200,18 @@ export function AdminTopNav({
   useNotificationFreshness({ items: notifications, staffId: profile.staffId });
   const criticalAnnouncement = useCriticalAnnouncer(notifications);
 
+  // Below md the shell is a full-height column: header, scrolling <main>, then
+  // the bottom tab bar as a real row — so the bar stops painting over the
+  // controls in the bottom 57px of every page. Every clause is reset at md:,
+  // where the page scrolls normally again. `overflow-x-hidden` is untouched
+  // (CAUSE-02, Stage 4).
   return (
-    <div className="admin-shell min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
+    {/* Below md the shell is exactly one viewport tall so the tab bar can sit in
+        flow at its foot. ⛔ `min-h-screen` must stay md-only: it compiles to
+        `min-height:100vh`, min-height outranks height, and on a phone with a
+        dynamic toolbar 100vh is TALLER than 100dvh — which would push the tab bar
+        below the fold and give the document a second scrollbar. */}
+    <div className="admin-shell flex h-[100dvh] flex-col overflow-x-hidden bg-[var(--admin-canvas)] md:block md:h-auto md:min-h-screen">
       {/* Skip link — first DOM element, visually hidden until focused */}
       <a
         href="#admin-main"
@@ -249,11 +259,12 @@ export function AdminTopNav({
           .mobile-nav-bell button svg {
             color: var(--admin-nav-text-muted) !important;
           }
-          /* Bottom tab bar — landscape mobile: shorter bar, no labels */
+          /* Bottom tab bar — landscape mobile: shorter bar, no labels.
+             The #admin-main padding-bottom twin was deleted with the fixed bar:
+             the bar is an in-flow row now, so nothing has to be cleared. */
           @media (orientation: landscape) and (max-width: 767px) {
             .admin-bottom-tabbar > div { height: 2.75rem !important; }
             .admin-tab-label { display: none !important; }
-            #admin-main { padding-bottom: calc(2.75rem + env(safe-area-inset-bottom, 0px)) !important; }
           }
         `}</style>
         <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 md:px-6 lg:px-8">
@@ -345,11 +356,19 @@ export function AdminTopNav({
         </div>
       </header>
 
-      {/* Main content — pb accounts for the mobile bottom tab bar */}
+      {/* Main content — below md this is the scroll container (the shell above is
+       *  a fixed-height column), so the bottom tab bar sits below the scrolling
+       *  area instead of on top of it. The end-of-document padding that used to
+       *  clear the fixed bar is now plain pb-6.
+       *  ⛔ [overflow-x:clip] is DELIBERATELY TEMPORARY and belongs to Stage 5:
+       *  overflow-y:auto would coerce a visible x into `auto`, turning this into
+       *  a horizontal scroller and lifting part of the CAUSE-02/03 mask early.
+       *  `clip` is the one x-value that pairs with `auto` without that coercion.
+       *  Stage 5 (FIX 20, Edit 4) MUST convert it to [overflow-x:auto]. */}
       <main
         id="admin-main"
         tabIndex={-1}
-        className="min-w-0 px-4 pb-[calc(3.5rem+1.5rem+env(safe-area-inset-bottom,0px))] pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:pb-8"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [overflow-x:clip] px-4 pb-6 pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:min-h-0 md:flex-none md:overflow-visible md:pb-8"
       >
         <div className="mx-auto w-full min-w-0 max-w-[100rem]">
           {children}
@@ -651,7 +670,7 @@ function AdminBottomTabBar({
     <>
       <nav
         aria-label="Admin navigation"
-        className="admin-bottom-tabbar fixed inset-x-0 bottom-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] md:hidden"
+        className="admin-bottom-tabbar relative z-40 shrink-0 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className="flex h-14 items-stretch">

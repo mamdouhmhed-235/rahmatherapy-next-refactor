@@ -201,6 +201,18 @@ function emptyParticipant(name = "", matchedServiceSlug?: string | null): Partic
   };
 }
 
+// Step changes jump back to the top of the form. Below md the admin shell makes
+// <main id="admin-main"> the scroll container, so scrolling the window alone
+// leaves the operator mid-form; at md and above the window is still the
+// scroller. Both are moved — whichever one is live does the work, the other is
+// a no-op. (getElementById resolves to the OUTER #admin-main, which is the one
+// that scrolls; nested duplicates exist on /admin/me and .../performance.)
+function scrollToFormTop() {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  document.getElementById("admin-main")?.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 function validateStep(
@@ -1131,14 +1143,14 @@ export function ManualBookingForm({
     setStepErrors({});
     setStepBannerError("");
     setStep((s) => Math.min(s + 1, 4));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollToFormTop();
   }
 
   function handleBack() {
     setStepErrors({});
     setStepBannerError("");
     setStep((s) => Math.max(s - 1, 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollToFormTop();
   }
 
   function handleFormSubmit() {
@@ -2452,7 +2464,7 @@ export function ManualBookingForm({
   return (
     <div className="grid gap-6">
       {leaveDialog}
-      <StepRail current={step} onNavigate={(n) => { setStepErrors({}); setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <StepRail current={step} onNavigate={(n) => { setStepErrors({}); setStep(n); scrollToFormTop(); }} />
 
       <form action={formAction} onSubmit={handleFormSubmit} className="grid gap-4 pb-20 md:pb-0">
         {hiddenInputs}
