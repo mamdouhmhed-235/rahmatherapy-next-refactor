@@ -29,6 +29,14 @@ body {
   font-family: var(--font-work-sans), Arial, sans-serif;
   font-size: 1rem;
   line-height: 1.5;
+}
+
+/* ⛔ The second half of the mask — see the long note in globals.css.
+ * Non-optional: without this the globals.css change does nothing at all, because
+ * this rule would go on clipping <body> on its own. Scoped the same way, so the
+ * public site keeps exactly the behaviour it has today and only the admin shell
+ * is released. */
+html:not(:has(.admin-shell)) body {
   overflow-x: hidden;
 }
 

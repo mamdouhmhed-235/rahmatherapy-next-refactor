@@ -39,6 +39,30 @@ html,
 body {
   margin: 0;
   padding: 0;
+}
+
+/* ⛔ THE MEASUREMENT MASK — kept for the PUBLIC site, lifted for the admin.
+ *
+ * `overflow-x: hidden` on the root element propagates to the viewport and forbids
+ * ALL horizontal scrolling, which turns any overflow from "swipe to reach it" into
+ * content that is silently destroyed. It also pins documentElement.scrollWidth to
+ * clientWidth, so the standard overflow measurement reads 0 even on a page that
+ * overflows badly — which is how the admin's spilling went unnoticed.
+ *
+ * ⚠️ It is NOT removed outright, because src/app/layout.tsx:4-5 imports this file
+ * for BOTH (public)/layout.tsx and admin/layout.tsx. The public pages were never
+ * measured — /home alone has 645 elements past the right edge at 320px that this
+ * rule is currently hiding — so lifting it there would expose an unaudited site.
+ *
+ * ⛔ Scoped NEGATIVELY, not positively. `html:has(.public-main)` would look
+ * equivalent but `.public-main` only exists at src/app/(public)/layout.tsx:46, and
+ * /booking/manage has no layout of its own — so a positive scope would silently
+ * un-mask that page too.
+ *
+ * `:has()` adds no new browser-support surface: globals.css already ships
+ * `html:has(.public-main)` below. */
+html:not(:has(.admin-shell)),
+html:not(:has(.admin-shell)) body {
   overflow-x: hidden;
 }
 

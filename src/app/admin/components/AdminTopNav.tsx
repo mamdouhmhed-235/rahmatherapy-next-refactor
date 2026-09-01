@@ -210,7 +210,7 @@ export function AdminTopNav({
   // TALLER than 100dvh — which would push the in-flow tab bar below the fold and
   // hand the document a second scrollbar, undoing the whole change.
   return (
-    <div className="admin-shell flex h-[100dvh] flex-col overflow-x-clip bg-[var(--admin-canvas)] md:block md:h-auto md:min-h-screen">
+    <div className="admin-shell flex h-[100dvh] flex-col bg-[var(--admin-canvas)] md:block md:h-auto md:min-h-screen">
       {/* Skip link — first DOM element, visually hidden until focused */}
       <a
         href="#admin-main"
@@ -367,7 +367,7 @@ export function AdminTopNav({
       <main
         id="admin-main"
         tabIndex={-1}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [overflow-x:clip] px-4 pb-6 pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:min-h-0 md:flex-none md:overflow-visible md:pb-8"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [overflow-x:auto] px-4 pb-6 pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:min-h-0 md:flex-none md:overflow-visible md:pb-8"
       >
         <div className="mx-auto w-full min-w-0 max-w-[100rem]">
           {children}
