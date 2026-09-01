@@ -24,10 +24,22 @@ export function MobileStickyActionBar({ action }: MobileStickyActionBarProps) {
     <aside
       role="region"
       aria-label="Quick actions"
-      className="fixed bottom-0 inset-x-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 pt-3 md:hidden"
-      // env(safe-area-inset-bottom) handles iOS home-bar inset; the constant
-      // base padding keeps touch targets clear on Android.
-      style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+      // Lifted clear of the bottom tab bar: h-14 (3.5rem) plus the phone's own
+      // bottom inset, which the tab bar pays for itself. At bottom-0 the two
+      // bars tied at z-40 inside the .admin-shell stacking context, so document
+      // order decided — and the tab bar, written after <main>, swallowed every
+      // tap on this button.
+      // ⛔ Offset, never a higher z-index: raising this bar would only swap
+      // which of the two is dead.
+      // ⛔ The tab bar is in flow now, not fixed, but the shell is exactly
+      // 100dvh tall, so the bar still occupies the bottom 3.5rem of the
+      // viewport — and a `fixed` element still resolves against the viewport,
+      // so it still lands on top. The offset is still required.
+      className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 pt-3 md:hidden"
+      // A flat 0.75rem: the tab bar underneath already owns the iOS home-bar
+      // inset, and `bottom` above already clears it, so keeping the max() here
+      // would double-count it.
+      style={{ paddingBottom: "0.75rem" }}
     >
       <div className="flex items-stretch gap-2">
         <ActionItem item={action.primary} primary />

@@ -91,15 +91,19 @@ describe("MobileStickyActionBar", () => {
     expect(region?.className).toContain("md:hidden");
   });
 
-  it("bar is positioned fixed to bottom of viewport (mobile sticky)", () => {
+  it("bar is positioned fixed above the bottom tab bar (mobile sticky)", () => {
     const action: MobileStickyAction = {
       primary: { label: "x", href: "/x" },
     };
     const { container } = render(<MobileStickyActionBar action={action} />);
     const region = container.querySelector('[role="region"]');
-    // Tailwind: `fixed bottom-0 inset-x-0 z-40` — assert each piece.
+    // Tailwind: `fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]
+    // inset-x-0 z-40` — assert each piece. The 3.5rem is the bottom tab bar's
+    // h-14; without it the two bars tie at z-40 and the tab bar takes the tap.
     expect(region?.className).toContain("fixed");
-    expect(region?.className).toContain("bottom-0");
+    expect(region?.className).toContain(
+      "bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))]",
+    );
     expect(region?.className).toContain("inset-x-0");
     expect(region?.className).toContain("z-40");
     // jsdom strips env() from CSSOM, so safe-area-inset-bottom is verified at
