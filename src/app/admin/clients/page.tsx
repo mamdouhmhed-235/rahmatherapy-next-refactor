@@ -638,7 +638,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
             aria-busy={false}
           >
             {isAlphaSort ? (
-              <div className="grid gap-6">
+              <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
                 {groupedRows.map((group) => (
                   <section key={group.letter} aria-labelledby={`section-${group.letter}`}>
                     <div className="sticky top-[var(--admin-topnav-offset,0px)] z-10 mb-2 flex items-baseline gap-3 bg-[var(--admin-surface)] pt-1 pb-1">
@@ -653,7 +653,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
                         className="h-px flex-1 bg-[var(--admin-border)]"
                       />
                     </div>
-                    <ul className="grid list-none gap-1.5 p-0">
+                    <ul className="grid grid-cols-[minmax(0,1fr)] list-none gap-1.5 p-0">
                       {group.rows.map((row) => (
                         <ClientRow
                           key={row.client.id}
@@ -667,7 +667,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
                 ))}
               </div>
             ) : (
-              <ul className="grid list-none gap-1.5 p-0">
+              <ul className="grid grid-cols-[minmax(0,1fr)] list-none gap-1.5 p-0">
                 {pageRows.map((row) => (
                   <ClientRow
                     key={row.client.id}
