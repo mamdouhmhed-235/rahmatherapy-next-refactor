@@ -192,7 +192,7 @@ export function SettingsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="pb-44 md:pb-24" noValidate>
+    <form onSubmit={handleSubmit} className="pb-44 md:pb-8" noValidate>
       <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
         <span
           aria-hidden="true"
@@ -428,8 +428,12 @@ export function SettingsForm({
         </AdminPanel>
       </div>
 
-      {/* ─── Sticky save bar (flat surface-card, no blur) ──────── */}
-      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:bottom-0 md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
+      {/* ─── Save bar (flat surface-card, no blur) ──────────────
+          md:static, not md:bottom-0: at md and up the tab bar is hidden, so the
+          bar joins normal flow and can no longer cover the fields above it.
+          bottom-14 stays below md — this bar is `fixed` (viewport-relative), so
+          the now-in-flow tab bar still sits in the bottom 56px it clears. */}
+      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:static md:mt-2 md:border-0 md:bg-transparent md:shadow-none md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex w-full justify-end sm:w-auto sm:justify-start">
             {isDirty ? (

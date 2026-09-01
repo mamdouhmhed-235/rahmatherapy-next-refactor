@@ -229,7 +229,7 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
   }
 
   return (
-    <div className={cn("grid gap-4", canEdit ? "pb-44 md:pb-24" : "pb-24 md:pb-8")}>
+    <div className={cn("grid gap-4", canEdit ? "pb-44 md:pb-8" : "pb-24 md:pb-8")}>
       <div>
         <Link
           href={GALLERY_HREF}
@@ -385,8 +385,12 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
         </aside>
       </div>
 
+      {/* md:static, not md:bottom-0: at md and up the tab bar is hidden, so the
+          bar joins normal flow and can no longer cover the fields above it.
+          bottom-14 stays below md — this bar is `fixed` (viewport-relative), so
+          the now-in-flow tab bar still sits in the bottom 56px it clears. */}
       {canEdit ? (
-        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom,0),0.75rem)] pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:bottom-0">
+        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom,0),0.75rem)] pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:static md:mt-2 md:border-0 md:bg-transparent md:shadow-none">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
             <p className="text-xs text-[var(--admin-text-muted)]" aria-live="polite">
               {isPending ? "Saving…" : dirty ? "Unsaved changes" : lastSavedAt ? "Saved" : ""}
