@@ -205,12 +205,11 @@ export function AdminTopNav({
   // controls in the bottom 57px of every page. Every clause is reset at md:,
   // where the page scrolls normally again. `overflow-x-hidden` is untouched
   // (CAUSE-02, Stage 4).
+  // ⛔ `min-h-screen` must stay md-only. It compiles to `min-height: 100vh`,
+  // min-height outranks height, and on a phone with a dynamic toolbar 100vh is
+  // TALLER than 100dvh — which would push the in-flow tab bar below the fold and
+  // hand the document a second scrollbar, undoing the whole change.
   return (
-    {/* Below md the shell is exactly one viewport tall so the tab bar can sit in
-        flow at its foot. ⛔ `min-h-screen` must stay md-only: it compiles to
-        `min-height:100vh`, min-height outranks height, and on a phone with a
-        dynamic toolbar 100vh is TALLER than 100dvh — which would push the tab bar
-        below the fold and give the document a second scrollbar. */}
     <div className="admin-shell flex h-[100dvh] flex-col overflow-x-hidden bg-[var(--admin-canvas)] md:block md:h-auto md:min-h-screen">
       {/* Skip link — first DOM element, visually hidden until focused */}
       <a
