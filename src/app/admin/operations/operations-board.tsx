@@ -247,7 +247,7 @@ export function OperationsBoard({
       ) : null}
 
       {/* Mobile / tablet tab strip (lg: and below). */}
-      <div className="mb-4 xl:hidden">
+      <div className="mb-4 min-w-0 xl:hidden">
         <div
           role="tablist"
           aria-label="Operational events by status"
