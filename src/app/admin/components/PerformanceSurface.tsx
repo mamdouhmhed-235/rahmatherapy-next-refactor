@@ -545,7 +545,16 @@ function MobileStickyActionBar({ href, label }: { href: string; label: string })
     <div
       role="region"
       aria-label="Quick actions"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden"
+      // bottom-14, not bottom-0: the bottom tab bar is h-14, and at bottom-0
+      // these two bars tied at z-40 so document order decided — the tab bar,
+      // written after <main>, took every tap on this link. Same offset the
+      // other two fixed bars already use (SettingsForm, TemplateEditor).
+      // ⛔ The tab bar is in flow now rather than fixed, but the shell is
+      // exactly 100dvh, so it still owns the bottom 3.5rem of the viewport and
+      // a `fixed` bar still resolves against the viewport. Offset still needed.
+      // ⛔ No md:bottom-0 and no widening of sm:hidden — this bar already stops
+      // existing at 640px, below where the tab bar stops at 768px.
+      className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden"
     >
       <Link
         href={href}
