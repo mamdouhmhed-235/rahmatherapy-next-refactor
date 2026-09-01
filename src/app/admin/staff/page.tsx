@@ -346,8 +346,18 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     });
   }
 
+  // `grid-cols-[minmax(0,1fr)]` pins the scaffold's single column to the
+  // container. Left implicit, that column is an `auto` track, so it floors at
+  // the largest minimum contribution among the page-level children that still
+  // compute `min-width: auto` — the header, the mobile "Add staff member"
+  // wrapper, the filter card and the staff-list panel. At 320 that floor is
+  // 319.922px inside a 288px box, and every sibling gets stretched out past
+  // the right edge with it. `minmax(0,1fr)` gives the track a 0 minimum, so no
+  // child can push it, and a 1fr maximum, so it still fills the container
+  // exactly. Same remedy the two dashboards already pass through this same
+  // component (BusinessDashboard.tsx:254, CoordinatorDashboard.tsx:357).
   return (
-    <AdminPageScaffold>
+    <AdminPageScaffold className="grid-cols-[minmax(0,1fr)]">
       <AdminPageHeader
         title={pageTitle}
         actions={
