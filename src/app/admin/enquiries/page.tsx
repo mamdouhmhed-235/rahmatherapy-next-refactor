@@ -315,7 +315,11 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
           <EnquiryIntakePanel staff={staff} />
         </aside>
 
-        <main className="min-w-0 grid gap-4 lg:max-w-[64rem]">
+        {/* `grid-cols-[minmax(0,1fr)]` pins the single column to `main`'s own
+            width. Left implicit, the `auto` track sizes to the widest child's
+            min-content — the tab list — so the whole page stretched with it and
+            the tab strip's scroller never actually scrolled. */}
+        <main className="min-w-0 grid grid-cols-[minmax(0,1fr)] gap-4 lg:max-w-[64rem]">
           {/* Tab strip — list-none on <ul>, momentum scroll on mobile with soft right-edge fade */}
           <nav
             aria-label="Enquiry status"
