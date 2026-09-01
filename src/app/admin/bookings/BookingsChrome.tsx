@@ -334,7 +334,7 @@ export function BookingsChrome({
     <div className="grid gap-3">
       <nav
         aria-label="Booking views"
-        className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible"
+        className="relative flex flex-wrap items-center gap-1.5"
       >
         {primaryKeys.map((key) => {
           const isActive = currentView === key;
@@ -364,7 +364,7 @@ export function BookingsChrome({
           );
         })}
 
-        <div ref={overflowRef} className="relative shrink-0">
+        <div ref={overflowRef} className="shrink-0 sm:relative">
           <button
             ref={overflowTriggerRef}
             type="button"
@@ -392,7 +392,7 @@ export function BookingsChrome({
           {overflowOpen ? (
             <div
               role="menu"
-              className="rahma-pop-in absolute right-0 z-30 mt-1.5 grid min-w-52 gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
+              className="rahma-pop-in absolute left-0 right-0 z-30 mt-1.5 grid min-w-52 sm:left-auto gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
             >
               {overflowKeys.map((key) => {
                 const isActive = currentView === key;
