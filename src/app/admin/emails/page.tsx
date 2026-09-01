@@ -321,8 +321,14 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     },
   ];
 
+  // `grid-cols-[minmax(0,1fr)]` pins the single column to the container. Left
+  // implicit, the `auto` track sizes to the widest child's min-content — the
+  // tab strip, 413px at a 320px viewport — and drags every page-level sibling
+  // out past the right edge with no horizontal scroll to reach them. The tab
+  // strip keeps its own `overflow-x-auto`; capping the track is what turns it
+  // into a real swipe row instead of an inert one.
   return (
-    <div className="grid gap-6 pb-24 sm:pb-0">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pb-24 sm:pb-0">
       <AdminPageHeader
         title="Email"
         description="Delivery status, manual reminders, review requests, and template library."
