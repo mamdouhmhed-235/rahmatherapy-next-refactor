@@ -278,8 +278,14 @@ export function AdminTopNav({
           {/* Separator */}
           <div className="mx-3 hidden h-5 w-px bg-[var(--admin-border)] md:block" aria-hidden="true" />
 
-          {/* Centre zone: primary nav with icon + label items */}
-          <nav className="hidden flex-1 items-center gap-0.5 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
+          {/* Centre zone: primary nav with icon + label items.
+           *  `min-w-0` lets this flex child shrink below its own content, so at
+           *  768px the right rail (search + bell + account menu, i.e. Sign out)
+           *  stays on screen instead of being drawn 193.75px past the edge.
+           *  `overflow-x-auto` + `admin-nav-scrollbar` keeps the links inside the
+           *  shrunken box as a swipeable strip; `py-1 -my-1` gives the 2px focus
+           *  ring room inside that scroll container without moving anything. */}
+          <nav className="admin-nav-scrollbar -my-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto py-1 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
             {primaryItems.map((item) => {
               const active = isActive(item.href, pathname);
               const label  = getNavLabel(item, variant);
