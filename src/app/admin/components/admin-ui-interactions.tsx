@@ -126,7 +126,7 @@ export function AdminActionMenu({
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
-          className="absolute right-0 z-30 mt-1.5 grid min-w-48 gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
+          className="absolute left-0 right-auto sm:left-auto sm:right-0 z-30 mt-1.5 grid min-w-48 max-w-[calc(100vw-1.5rem)] gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
         >
           {children}
         </div>
