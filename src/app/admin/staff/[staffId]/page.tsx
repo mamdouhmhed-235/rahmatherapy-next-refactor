@@ -349,7 +349,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   const showProfileEditor = canEditSafeProfile || canShowAdminPanels;
 
   return (
-    <div className="grid gap-6 pb-24 lg:pb-0">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 pb-24 lg:pb-0">
       {/* Breadcrumb */}
       <div className="mb-2">
         <Link
@@ -403,7 +403,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                 <Mail className="size-3.5" aria-hidden="true" />
                 <a
                   href={`mailto:${typedStaff.email}`}
-                  className="rounded-sm outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
+                  className="min-w-0 rounded-sm break-all outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
                 >
                   {typedStaff.email}
                 </a>
