@@ -638,11 +638,11 @@ function CapacityPreview({
     >
       <div className="grid gap-5">
         <div
-          className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0"
+          className="overflow-x-auto"
           role="group"
           aria-label="Weekly working hours preview"
         >
-          <ul className="grid min-w-[40rem] list-none grid-cols-7 gap-2 pl-0 md:min-w-0 md:max-w-[56rem] md:[grid-template-columns:repeat(7,minmax(0,1fr))]">
+          <ul className="grid list-none grid-cols-1 gap-2 pl-0 md:max-w-[56rem] md:[grid-template-columns:repeat(7,minmax(0,1fr))]">
             {resolvedWeek.map((day) => {
               const ruleTimes = day.ruleIsOpen
                 ? formatSegments(day.ruleSegments)
