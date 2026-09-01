@@ -393,13 +393,10 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             aria-hidden="true"
             className="hidden h-4 w-px shrink-0 bg-[var(--admin-border)] sm:inline-block"
           />
-          {/* Pills: single column below 360px (a 2x2 pair floors at 293.92px,
-              32px wider than a 320px phone can hold, and drags the whole page
-              column out with it), 2x2 grid from 360px up to lg (forces a clean
-              wrap at tablet sizes instead of the awkward 3+1 row split
-              flex-wrap produces), then inline single-row flex at lg+ where all
-              four fit comfortably. */}
-          <div className="grid min-w-0 flex-1 grid-cols-1 gap-1.5 min-[360px]:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">
+          {/* Pills: 2x2 grid up to lg (forces a clean wrap at tablet sizes
+              instead of the awkward 3+1 row split flex-wrap produces), then
+              inline single-row flex at lg+ where all four fit comfortably. */}
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 lg:flex lg:flex-wrap lg:items-center">
             <WorkloadSegment
               href={buildUrl({ status: "active" })}
               title="Filter to active staff"
