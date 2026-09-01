@@ -665,7 +665,7 @@ function AdminBottomTabBar({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
+                  "relative flex flex-1 flex-col items-center justify-center gap-1 px-0.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
                   active
                     ? "text-[var(--admin-primary)]"
                     : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
@@ -685,7 +685,7 @@ function AdminBottomTabBar({
                   )}
                   aria-hidden="true"
                 />
-                <span className="admin-tab-label truncate leading-none text-center">{label}</span>
+                <span className="admin-tab-label truncate text-center">{label}</span>
               </Link>
             );
           })}
@@ -699,7 +699,7 @@ function AdminBottomTabBar({
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
+              "relative flex flex-1 flex-col items-center justify-center gap-1 px-0.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
               hasActiveMenuPage || moreOpen
                 ? "text-[var(--admin-primary)]"
                 : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
@@ -722,7 +722,7 @@ function AdminBottomTabBar({
             >
               {initials}
             </span>
-            <span className="admin-tab-label leading-none">More</span>
+            <span className="admin-tab-label">More</span>
           </button>
         </div>
       </nav>
