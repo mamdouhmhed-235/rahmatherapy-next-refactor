@@ -628,8 +628,9 @@ function NotificationPopoverContent({
       {/* ── Status tabs ──────────────────────────────────────── */}
       <div
         className={cn(
-          "flex gap-1 overflow-x-auto border-b border-[var(--admin-border)] px-5 py-2.5",
-          isMobile && "px-4",
+          "flex gap-1 border-b border-[var(--admin-border)] px-5 py-2.5",
+          !isMobile && "overflow-x-auto",
+          isMobile && "flex-wrap px-4",
         )}
         role="tablist"
         aria-label="Notification status filter"
