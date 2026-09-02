@@ -270,6 +270,23 @@ a[class*="border-rahma-green/30"] {
   width: 0;
 }
 
+/* The nav hides its scrollbar (above), so at widths where the five links do not
+ * fit there was NO cue that the strip scrolls — measured at 768px, where the
+ * strip holds 470px of links in a 263px box and the last two sit outside it.
+ *
+ * This fades the final 28px of the strip, which reads as "there is more this
+ * way". It costs no layout and no element.
+ *
+ * ⛔ Why it is safe at widths where everything fits: the fade falls on the empty
+ * space after the last link, so there is nothing there to fade and the strip
+ * looks exactly as it does today. Verified at 1280.
+ *
+ * A browser without mask support simply shows no fade — i.e. today's behaviour. */
+.admin-nav-scrollbar {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+
 .admin-nav-surface {
   color: var(--admin-nav-surface-text);
 }
