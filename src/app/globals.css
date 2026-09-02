@@ -73,31 +73,6 @@
   .admin-shell legend {
     padding: 0;
   }
-
-  /* ⛔ THE THIRD MISSING RESET DECLARATION, and the widest of them.
-   *
-   * Without preflight every <button> that names no border of its own keeps the
-   * browser's `border: 2px outset ButtonBorder`. MEASURED on the running app:
-   * 207 of 316 buttons across ten admin pages carry it — 161 on /admin/audit
-   * alone, 15 of 22 on /admin/clients, and the account-menu trigger on EVERY
-   * page. It reads as a grey box drawn around controls that were designed
-   * without one, which is what the visual review kept reporting as "the only
-   * tab inside a light-grey rectangle" and "a thick bright-grey border".
-   *
-   * The existing `button { background-color: transparent }` above fixed the
-   * same class of problem for ButtonFace. This is its border half.
-   *
-   * ⛔ SAFE ON WIDTHS, verified rather than assumed: these buttons compute
-   * `box-sizing: border-box`, so dropping the border changes no outer size.
-   * The 768px account button measures right = 744.00 and width = 64 both
-   * before and after — the hairline against the 744px edge is untouched.
-   *
-   * `border-style: solid` is kept so any utility that asks for a border width
-   * still draws a normal border. Scoped to .admin-shell like the rest. */
-  .admin-shell button {
-    border-width: 0;
-    border-style: solid;
-  }
 }
 
 html,
