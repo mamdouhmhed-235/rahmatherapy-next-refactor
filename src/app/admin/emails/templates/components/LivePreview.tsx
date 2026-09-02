@@ -192,8 +192,16 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
       </div>
 
       <div className="relative overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-email-preview-bg)]">
+        {/* ⛔ The skeleton used to be `absolute inset-0`, but nothing else is in
+         *  the wrapper while it shows (`displayHtml` is null on first paint and
+         *  on retry), so the wrapper had no in-flow content and collapsed to its
+         *  own 2px of border — taking the skeleton, which was sized to it, down
+         *  to zero height with it. Measured on admin/1280: the wrapper 720x2, all
+         *  five skeleton bars 678x0, and ~600px of bare column under the PREVIEW
+         *  heading for as long as the fetch took. In flow at the iframe's own
+         *  height, the pane holds its place and the skeleton is actually visible. */}
         {initialStatus === "loading" ? (
-          <div className="absolute inset-0 z-10 flex flex-col gap-3 bg-[var(--admin-email-preview-chrome-bg)] p-5" aria-hidden="true">
+          <div className="flex h-[420px] flex-col gap-3 bg-[var(--admin-email-preview-chrome-bg)] p-5 sm:h-[520px]" aria-hidden="true">
             <AdminSkeleton className="h-6 w-2/3" />
             <AdminSkeleton className="h-3 w-full" />
             <AdminSkeleton className="h-3 w-5/6" />

@@ -394,8 +394,20 @@ function TabStrip({
       aria-label="Email sections"
       className="-mx-4 sm:mx-0"
     >
-      {/* Mobile: momentum-scroll pill row. Desktop: row of pills with a fine underline. */}
-      <ul className="relative flex min-w-full gap-1.5 overflow-x-auto px-4 pb-px sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Mobile: momentum-scroll pill row. Desktop: row of pills with a fine underline.
+       *
+       * The scrollbar is hidden below, so at phone widths there was NO cue that
+       * the strip scrolls — measured at 320px, where the four pills are 497px
+       * wide and "Templates" sits 161px past the right edge (106px at 375,
+       * 67px at 414). A whole section of the page was reachable only by a swipe
+       * nothing invited. The mask fades the last 24px of the strip, which reads
+       * as "there is more this way" — the same affordance already used on
+       * /admin/enquiries' filter strip and on the 768 nav rail.
+       *
+       * ⛔ Off from `sm` up: where the pills fit, the fade would land on the
+       * empty space after the last one, so it is a no-op there by construction
+       * — but `sm:[mask-image:none]` makes that explicit rather than incidental. */}
+      <ul className="relative flex min-w-full gap-1.5 overflow-x-auto px-4 pb-px sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_0,black_calc(100%-24px),transparent_100%)] sm:[mask-image:none]">
         {tabs.map((tab) => {
           const isActive = tab.key === activeTab;
           return (
