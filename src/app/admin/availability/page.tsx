@@ -871,19 +871,16 @@ function DeniedSurface({
     );
   }
 
+  // ⛔ No `actions` here. AdminAccessDenied already renders its own
+  // "Back to dashboard" → /admin/dashboard for every non-therapist variant
+  // (admin-ui.tsx:912,952), so passing the same link again drew the button
+  // twice, stacked and identical. The therapist branch above still passes
+  // `actions` because "My availability" is a different destination.
   return (
     <AdminAccessDenied
       title="You don't have access to this section"
       message="Availability settings are managed by the owner or practice manager."
       variant="coordinator"
-      actions={
-        <Link
-          href="/admin/dashboard"
-          className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-canvas)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-        >
-          Back to dashboard
-        </Link>
-      }
     />
   );
 }

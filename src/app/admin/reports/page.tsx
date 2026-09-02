@@ -895,7 +895,16 @@ function FilterForm({
           ))}
         </select>
       </FilterField>
-      <div className={variant === "mobile" ? "grid grid-cols-2 gap-3" : "contents"}>
+      {/* ⛔ Two-up only once there is room. <input type="date"> has a ~157px
+          min-content width in Chrome, so a hard grid-cols-2 inside the 264px
+          filter sheet pushed the "To" field 3px past the sheet — and the sheet
+          is overflow-x:hidden, so it was clipped, not scrollable. `contents`
+          (desktop) is untouched. */}
+      <div
+        className={
+          variant === "mobile" ? "grid gap-3 min-[400px]:grid-cols-2" : "contents"
+        }
+      >
         <FilterField label="From">
           <input
             name="from"

@@ -432,8 +432,22 @@ export function SettingsForm({
           md:static, not md:bottom-0: at md and up the tab bar is hidden, so the
           bar joins normal flow and can no longer cover the fields above it.
           bottom-14 stays below md — this bar is `fixed` (viewport-relative), so
-          the now-in-flow tab bar still sits in the bottom 56px it clears. */}
-      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:static md:mt-2 md:border-0 md:bg-transparent md:shadow-none md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
+          the now-in-flow tab bar still sits in the bottom 56px it clears.
+
+          ⛔ max-md:hidden while the form is clean. Below md this bar is fixed,
+          so at rest it painted over whatever happened to sit in the bottom
+          ~64px of the viewport — at 320 that was the "Accept new bookings"
+          switch itself (measured: the 44x24 switch at top 536, fully behind the
+          bar). A clean form has nothing to save, so the bar has no job; it
+          appears the moment anything changes, exactly as Discard already does
+          below. The form keeps pb-44 either way, so nothing reflows. md and up
+          is unaffected — the bar is static and always shown there. */}
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:static md:mt-2 md:border-0 md:bg-transparent md:shadow-none md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]",
+          !isDirty && "max-md:hidden"
+        )}
+      >
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex w-full justify-end sm:w-auto sm:justify-start">
             {isDirty ? (

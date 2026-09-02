@@ -566,8 +566,14 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
           {/* Staff combobox (hidden for therapist scope) */}
           {therapistOnly ? (
-            <p className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)] px-3 text-sm font-medium text-[var(--admin-text-muted)]">
-              Your schedule
+            /* Caption + value, not a filled pill: as a muted pill beside the
+               real Therapist/Payment selects it read as a disabled dropdown.
+               Same caption markup as the selects it replaces. */
+            <p className="inline-flex h-10 items-center gap-2 text-sm">
+              <span className="text-[0.8125rem] font-medium text-[var(--admin-text-muted)]">
+                Therapist
+              </span>
+              <span className="font-medium text-[var(--admin-body)]">Your schedule</span>
             </p>
           ) : (
             <label className="inline-flex h-10 items-center gap-2 text-sm">

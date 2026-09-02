@@ -98,7 +98,13 @@ export function InsightRow({ insightId, severity, message, drillHref }: InsightR
         onClick={handleDismiss}
         disabled={isPending}
         aria-label={`Dismiss insight: ${message}`}
-        className="inline-flex size-7 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-black/10 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45 disabled:cursor-not-allowed disabled:opacity-50"
+        // ⛔ border-0 and text-inherit are both load-bearing. Tailwind's preflight
+        // is not imported (globals.css:11), so a bare <button> keeps the UA's
+        // `border: outset ButtonBorder` and `color: ButtonText` — a grey ring
+        // around a black glyph, which with rounded-full read as an empty circle
+        // (measured × rgb(0,0,0) on a banner of rgb(86,29,32), ~1.6:1).
+        // Inheriting picks up the row's own severity text colour set above.
+        className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-inherit outline-none transition-colors hover:bg-black/10 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <X className="size-4" aria-hidden="true" />
       </button>
