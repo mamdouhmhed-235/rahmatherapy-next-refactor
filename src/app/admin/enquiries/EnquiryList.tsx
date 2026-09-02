@@ -279,7 +279,12 @@ export function EnquiryList({ rows }: { rows: EnquiryRowData[] }) {
         </div>
       ) : null}
 
-      <ul className="grid list-none gap-3">
+      {/* `grid-cols-[minmax(0,1fr)]` pins the single column to the list's own
+          width — the same fix as the tab strip in page.tsx. Left implicit, the
+          `auto` track takes the widest card's min-content (one long word in a
+          note was enough to hold every card at 408px), so the cards never
+          shrank below ~465px and the whole page had to be swiped sideways. */}
+      <ul className="grid grid-cols-[minmax(0,1fr)] list-none gap-3">
         {rows.map((row) => (
           <li key={row.id}>
             <EnquiryRow
@@ -423,7 +428,11 @@ function EnquiryRow({
             </div>
           }
           description={
-            <div className="grid gap-2">
+            // Same pair again, one level in: the note box is a grid item, so
+            // without `minmax(0,1fr)` it also holds its min-content width, and
+            // `break-words` inherits down so free text with no spaces in it (a
+            // URL, a long tag) wraps inside the card rather than out of it.
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-2 break-words">
               <p className="text-sm leading-6 text-[var(--admin-body)]">
                 <span className="font-medium text-[var(--admin-heading)]">Interest:</span>{" "}
                 {enquiry.service_interest || (
