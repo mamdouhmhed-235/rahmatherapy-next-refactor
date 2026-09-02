@@ -390,35 +390,73 @@ export function BookingsChrome({
             />
           </button>
           {overflowOpen ? (
-            <div
-              role="menu"
-              className="rahma-pop-in absolute left-0 right-0 z-30 mt-1.5 grid min-w-52 sm:left-auto gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
-            >
-              {overflowKeys.map((key) => {
-                const isActive = currentView === key;
-                return (
-                  <Link
-                    key={key}
-                    role="menuitem"
-                    href={`/admin/bookings?${readQueryString(query, key)}`}
-                    onClick={() => setOverflowOpen(false)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "flex min-h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                      isActive
-                        ? "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
-                        : "text-[var(--admin-body)] hover:text-[var(--admin-heading)]"
-                    )}
-                  >
-                    {ALL_VIEW_LABELS[key]}
-                    <ViewCount
-                      count={viewCounts?.[key]}
-                      className="ml-auto pl-3 text-xs text-[var(--admin-text-muted)]"
-                    />
-                  </Link>
-                );
-              })}
-            </div>
+            <>
+              {/* Phone scrim. Sits INSIDE `overflowRef` on purpose: the
+                  outside-mousedown effect above tests `contains()`, so a scrim
+                  outside it would close the menu on mousedown and swallow the
+                  tap that was meant for the sheet. The onClick is what
+                  dismisses. Same shape as AdminActionMenu (48dc0ab). */}
+              <div
+                aria-hidden="true"
+                onClick={() => setOverflowOpen(false)}
+                className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 md:hidden"
+              />
+              <div
+                role="menu"
+                /* ⛔ BELOW md THIS IS A SHEET, NOT A DROPDOWN — and it has to be.
+                 * Below md `#admin-main` is the scroll container
+                 * (AdminTopNav.tsx:413) and its box STOPS where the in-flow z-40
+                 * bottom tab bar (AdminTopNav.tsx:717) begins, so an anchored
+                 * `absolute` popup that dropped past that line was clipped by the
+                 * scroller AND painted under the bar — and a popover cannot be
+                 * scrolled out from under a bar. Measured on /admin/bookings at
+                 * 320: with seven overflow views open, "Completed" was sliced and
+                 * "Cancelled / No-show" (role=menuitem, top 596.5, h 44) sat
+                 * entirely beneath a bar whose top is ~583, with "All" and
+                 * "Series" past the fold — four booking views unreachable.
+                 * `fixed` + z-50 clears both (it escapes the scroller's clip and
+                 * paints above the bar) and a capped, scrollable height means the
+                 * view count no longer decides which filters are reachable.
+                 * Safe because nothing above this establishes a containing block
+                 * for `fixed`: `.admin-shell` is `position:relative;
+                 * isolation:isolate` (globals.css:140) — a stacking context, not
+                 * a containing block — and no ancestor sets transform / filter /
+                 * backdrop-filter.
+                 *
+                 * ⛔ md: is the switch, not sm:, because the tab bar is
+                 * `md:hidden` — the constraint and the reset have to share a
+                 * breakpoint or 640–767px keeps the clipped dropdown. This is why
+                 * the old `sm:left-auto` becomes `md:left-auto`. At md and above
+                 * every declaration below restores exactly what this menu
+                 * rendered before, so 768 and 1280 are unchanged. */
+                className="rahma-pop-in fixed bottom-2 left-2 right-2 z-50 grid max-h-[70dvh] min-w-52 gap-0.5 overflow-y-auto overscroll-contain rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)] md:absolute md:bottom-auto md:left-auto md:right-0 md:z-30 md:mt-1.5 md:max-h-none md:overflow-y-visible md:overscroll-auto"
+              >
+                {overflowKeys.map((key) => {
+                  const isActive = currentView === key;
+                  return (
+                    <Link
+                      key={key}
+                      role="menuitem"
+                      href={`/admin/bookings?${readQueryString(query, key)}`}
+                      onClick={() => setOverflowOpen(false)}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                        isActive
+                          ? "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
+                          : "text-[var(--admin-body)] hover:text-[var(--admin-heading)]"
+                      )}
+                    >
+                      {ALL_VIEW_LABELS[key]}
+                      <ViewCount
+                        count={viewCounts?.[key]}
+                        className="ml-auto pl-3 text-xs text-[var(--admin-text-muted)]"
+                      />
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
           ) : null}
         </div>
       </nav>
