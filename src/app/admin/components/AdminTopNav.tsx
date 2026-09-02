@@ -681,7 +681,14 @@ function AdminBottomTabBar({
         className="admin-bottom-tabbar relative z-40 shrink-0 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <div className="flex h-14 items-stretch">
+        {/* `px-1` is the bar's own gutter. Without it the first and last tabs
+            butt against the screen: at 320 with six tabs "Dashboard" started
+            ~2 CSS px from the edge and read as falling off it. Four px each
+            side costs every tab 1.33px of a 53.3px slot, which no label
+            notices. (Inter-label spacing at 320 is a capacity limit, not a
+            padding one — six 12px labels do not fit in 320px however this row
+            is padded.) */}
+        <div className="flex h-14 items-stretch px-1">
           {/* Primary tabs */}
           {primaryItems.map((item) => {
             const active = isActive(item.href, pathname);
@@ -725,8 +732,21 @@ function AdminBottomTabBar({
             aria-label="More navigation and account menu"
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
+            /* ⛔ `border-0` is not decoration. Tailwind's preflight is
+             * deliberately not imported (globals.css:11) and the patch there
+             * restores only `background-color`, so every <button> that names no
+             * border of its own still computes `border: 2px outset ButtonBorder`
+             * — verified live: an empty button on /admin/login computes 2px
+             * outset. "More" is the only tab that is a <button>; the other five
+             * are <a>, which has no such default. That is the grey rectangle
+             * three reviewers saw around this one tab, with its right side
+             * sitting on the 320px screen edge. It is NOT the focus ring:
+             * `ring-inset` is a real Tailwind 4.2.4 utility here and computes
+             * `--tw-ring-inset: inset`, so the ring is drawn inside the box and
+             * cannot bleed. Buttons compute `box-sizing: border-box`, so
+             * dropping the border changes no width. */
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-1 px-0.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
+              "relative flex flex-1 flex-col items-center justify-center gap-1 border-0 px-0.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
               hasActiveMenuPage || moreOpen
                 ? "text-[var(--admin-primary)]"
                 : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
@@ -847,7 +867,9 @@ function UserMenuSheet({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            /* `border-0` for the same reason as the "More" tab above — this is
+               the grey box the reviewers photographed around this X. */
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] border-0 text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             aria-label="Close menu"
           >
             <X className="size-4" aria-hidden="true" />
@@ -968,7 +990,11 @@ function MobileSearch() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search (⌘K)"
-        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-nav-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-nav-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        /* `border-0` — the phone search trigger is the button the coordinator
+           named alongside the "More" tab: same missing preflight, same grey
+           2px outset box. Rendered only inside a `md:hidden` rail, so the 768px
+           header row is untouched. */
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] border-0 text-[var(--admin-nav-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-nav-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         <svg className="size-[1.125rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8" />
@@ -985,7 +1011,7 @@ function MobileSearch() {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute right-2 top-2 inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="absolute right-2 top-2 inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-control)] border-0 text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label="Close search"
             >
               <X className="size-4" aria-hidden="true" />
