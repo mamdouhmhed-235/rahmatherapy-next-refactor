@@ -1123,9 +1123,13 @@ function ClientRow({
       {isDeleted ? null : (
         <ClientSelectCheckbox clientId={client.id} clientName={client.full_name} />
       )}
+      {/* Decoration only (aria-hidden), and at 320 it costs 44px — the avatar
+          plus its gap — out of the 264px the row has to spend. That is a third
+          of what the name needs to stay readable, so it joins the timeline and
+          "New booking" columns in appearing at md and not before. */}
       <span
         aria-hidden="true"
-        className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-semibold text-[var(--admin-on-tint)] ring-1 ring-transparent transition-shadow duration-200 ease-out group-hover:ring-[var(--admin-primary)]/30"
+        className="hidden size-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-semibold text-[var(--admin-on-tint)] ring-1 ring-transparent transition-shadow duration-200 ease-out group-hover:ring-[var(--admin-primary)]/30 md:inline-flex"
         style={{ backgroundColor: `oklch(82% 0.05 ${hue})` }}
       >
         {initials}
@@ -1148,15 +1152,28 @@ function ClientRow({
             {client.full_name}
           </Link>
         )}
-        {showContact && client.phone ? (
-          <p className="truncate text-xs text-[var(--admin-text-muted)]">
-            {client.phone}
-          </p>
-        ) : showContact && client.email ? (
-          <p className="truncate text-xs text-[var(--admin-text-muted)]">
-            {client.email}
-          </p>
-        ) : null}
+        {/* Below md the status pill rides this line instead of the row's right
+            edge. Out there it is a fixed ~69px taken from a name column that is
+            the only thing in the row that flexes; down here it costs the name
+            nothing. Rendered in both places, one hidden per breakpoint, because
+            the two sit in different flex parents. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 md:block">
+          {showContact && client.phone ? (
+            <p className="min-w-0 truncate text-xs text-[var(--admin-text-muted)]">
+              {client.phone}
+            </p>
+          ) : showContact && client.email ? (
+            <p className="min-w-0 truncate text-xs text-[var(--admin-text-muted)]">
+              {client.email}
+            </p>
+          ) : null}
+          {/* flex-wrap, not shrink: a wide pill ("Returning") next to a full
+              phone number overruns 320, and wrapping drops the pill to its own
+              line rather than eating the number back down to "07…". */}
+          <span title={LIFECYCLE_TITLE[lifecycle]} className="relative z-10 shrink-0 md:hidden">
+            <AdminStatusBadge value={lifecycleLabel} tone={tone} compact />
+          </span>
+        </div>
       </div>
       <div className="hidden flex-1 flex-col items-end gap-0.5 md:flex">
         <p className="font-mono text-xs text-[var(--admin-text-muted)]">
@@ -1171,7 +1188,8 @@ function ClientRow({
         </p>
         <p className="text-xs text-[var(--admin-text-muted)]">{countLabel}</p>
       </div>
-      <span title={LIFECYCLE_TITLE[lifecycle]} className="relative z-10">
+      {/* The md+ position. Below md the copy on the contact line above stands in. */}
+      <span title={LIFECYCLE_TITLE[lifecycle]} className="relative z-10 hidden md:inline-block">
         <AdminStatusBadge value={lifecycleLabel} tone={tone} compact />
       </span>
       {isDeleted ? null : (
