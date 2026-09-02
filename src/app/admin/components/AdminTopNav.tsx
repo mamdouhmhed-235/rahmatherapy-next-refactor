@@ -363,11 +363,20 @@ export function AdminTopNav({
        *  overflow-y:auto would coerce a visible x into `auto`, turning this into
        *  a horizontal scroller and lifting part of the CAUSE-02/03 mask early.
        *  `clip` is the one x-value that pairs with `auto` without that coercion.
-       *  Stage 5 (FIX 20, Edit 4) MUST convert it to [overflow-x:auto]. */}
+       *  Stage 5 (FIX 20, Edit 4) MUST convert it to [overflow-x:auto].
+       *
+       *  ⛔ `relative` is load-bearing, not decoration. Once this element became
+       *  the scroller, every `position: absolute` descendant — notably the
+       *  `sr-only` spans React sprinkles through the page — still resolved
+       *  against `.admin-shell` (globals.css sets `position: relative` on it).
+       *  They therefore escaped the scroller and stretched the DOCUMENT to
+       *  1,645px against a 640px shell, leaving 1,005px of bare cream
+       *  public-site background below a dark admin. Making main a containing
+       *  block keeps them inside the box that scrolls. */}
       <main
         id="admin-main"
         tabIndex={-1}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [overflow-x:auto] px-4 pb-6 pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:min-h-0 md:flex-none md:overflow-visible md:pb-8"
+        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain [overflow-x:auto] px-4 pb-6 pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:min-h-0 md:flex-none md:overflow-visible md:pb-8"
       >
         <div className="mx-auto w-full min-w-0 max-w-[100rem]">
           {children}
