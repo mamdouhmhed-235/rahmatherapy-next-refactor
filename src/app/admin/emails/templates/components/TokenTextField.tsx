@@ -134,7 +134,16 @@ export function TokenTextField({
     "rounded-[var(--admin-radius-control)] border bg-[var(--admin-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus:border-[var(--admin-focus)] focus:ring-2 focus:ring-[var(--admin-focus)]/55",
     "read-only:cursor-default read-only:bg-[var(--admin-panel-muted)] read-only:text-[var(--admin-text-muted)] read-only:focus:ring-0",
     hasError ? "border-[var(--admin-danger-solid)]" : "border-[var(--admin-border-form)]",
-    multiline ? "min-h-[5.5rem] py-2 leading-relaxed" : "h-11"
+    // `rows={3}` already sizes the box to exactly three line boxes, so the
+    // clip lands on a line boundary and no half-line ever shows. Two things
+    // broke that: `min-h-[5.5rem]` (88px) was 1.75px taller than the three
+    // rows need, and a textarea clips at its PADDING box, so `py-2` turned
+    // the bottom 8px into a peephole onto line four — measured at 320 as
+    // ~5.5px of glyph tops ("free travel areas, we'll add a" sliced through
+    // the letters). `pb-0` puts the clip back on the line boundary, and
+    // because both the rows height and the line boxes use the same
+    // line-height it stays exact at any font size or leading.
+    multiline ? "pt-2 pb-0 leading-relaxed" : "h-11"
   );
 
   return (
