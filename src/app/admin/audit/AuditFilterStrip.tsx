@@ -114,7 +114,10 @@ export function AuditFilterStrip({ actors, initialValues }: AuditFilterStripProp
         className="hidden flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-3 md:flex"
         aria-busy={isPending}
       >
-        <form onSubmit={onSearchSubmit} className="flex min-w-0 flex-1 items-center gap-2" role="search">
+        {/* min-w-[200px] must match the inner field's floor: with min-w-0 the form
+            shrank to 81px at 768 while the field held 200px and painted over the
+            Actor select. The floor makes the strip wrap instead of overlap. */}
+        <form onSubmit={onSearchSubmit} className="flex min-w-[200px] flex-1 items-center gap-2" role="search">
           <label htmlFor="audit-search" className="sr-only">
             Search by booking, client, staff, or event ID
           </label>
@@ -366,8 +369,10 @@ function DateRangeChipStrip({
   to: string;
   onChange: (range: DateRangePresetKey, from?: string, to?: string) => void;
 }) {
+  // Wraps rather than scrolls: at 320 the row is 509px in 296px of room, which
+  // pushed the ACTIVE chip and "Custom" off screen with nothing to say so.
   return (
-    <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1">
+    <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
       {DATE_RANGE_PRESETS.map((preset) => {
         const active = value === preset.key;
         return (
