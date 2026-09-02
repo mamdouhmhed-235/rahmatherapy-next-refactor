@@ -200,6 +200,42 @@ export function AdminTopNav({
   useNotificationFreshness({ items: notifications, staffId: profile.staffId });
   const criticalAnnouncement = useCriticalAnnouncer(notifications);
 
+  // ── Keep the current page's nav link inside the visible strip ───────────────
+  // The primary strip below is `min-w-0` + `overflow-x-auto` (load-bearing: it
+  // is what keeps the account menu on screen at 768px). The side effect is that
+  // it is a horizontal SCROLLER that always starts at scrollLeft 0. Measured on
+  // the captured 768px DOM: scrollWidth 472 inside clientWidth 263, i.e. 209px
+  // of links sitting off to the right. So a coordinator on /admin/staff saw
+  // "Dashboard | Bookings | Clie" with nothing highlighted — even though in that
+  // very same DOM the "Team" link carries aria-current="page" AND the full
+  // active pill. `isActive()` was never wrong; the highlight was just parked
+  // out of sight. 15 of the 127 captured 768px pages are in that state (roles
+  // owner/admin/coordinator, on /admin/enquiries and the /admin/staff family).
+  //
+  // This nudges the scroller so the active link is inside the box. It writes
+  // `scrollLeft` and nothing else: no layout, no width, so the 744.00 header
+  // hairline at 768px cannot move. Above md the strip does not overflow at all
+  // (0 of 127 captures at 1280 report it as a scroller), so the scrollWidth
+  // guard makes this a strict no-op there — and below md the strip is `hidden`,
+  // where every measurement reads 0 and the same guard returns early.
+  const navRef        = useRef<HTMLElement>(null);
+  const activeLinkRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    const nav  = navRef.current;
+    const link = activeLinkRef.current;
+    if (!nav || !link) return;               // no nav, or no active page in the strip
+    if (nav.scrollWidth <= nav.clientWidth) return;  // not scrolling — nothing to do
+    const navBox  = nav.getBoundingClientRect();
+    const linkBox = link.getBoundingClientRect();
+    const gutter  = 8;                       // leave a sliver of the neighbour showing
+    if (linkBox.right > navBox.right) {
+      nav.scrollLeft += linkBox.right - navBox.right + gutter;
+    } else if (linkBox.left < navBox.left) {
+      nav.scrollLeft -= navBox.left - linkBox.left + gutter;
+    }
+  }, [pathname]);
+
   // Below md the shell is a full-height column: header, scrolling <main>, then
   // the bottom tab bar as a real row — so the bar stops painting over the
   // controls in the bottom 57px of every page. Every clause is reset at md:,
@@ -295,7 +331,7 @@ export function AdminTopNav({
            *  `overflow-x-auto` + `admin-nav-scrollbar` keeps the links inside the
            *  shrunken box as a swipeable strip; `py-1 -my-1` gives the 2px focus
            *  ring room inside that scroll container without moving anything. */}
-          <nav className="admin-nav-scrollbar -my-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto py-1 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
+          <nav ref={navRef} className="admin-nav-scrollbar -my-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto py-1 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
             {primaryItems.map((item) => {
               const active = isActive(item.href, pathname);
               const label  = getNavLabel(item, variant);
@@ -304,6 +340,7 @@ export function AdminTopNav({
                 <Link
                   key={item.href}
                   href={item.href}
+                  ref={active ? activeLinkRef : undefined}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2.5 text-[0.8125rem] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
