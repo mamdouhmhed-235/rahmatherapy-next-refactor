@@ -323,8 +323,17 @@ export function DashboardFiltersClient({
   return (
     <section
       aria-label="Dashboard filters"
+      // `md:top-[calc(3.5rem+1px)]` parks this bar UNDER the top nav instead of
+      // behind it. Below md the shell is h-[100dvh] and <main> is the scroller,
+      // so this pins at the top of main's scrollport and top-0 is right. From
+      // md up the shell goes `md:block md:h-auto` and the DOCUMENT scrolls, so
+      // AdminTopNav's `sticky top-0 z-40` header and this `sticky top-0 z-20`
+      // section both pin at 0 — the header wins on z-index and permanently
+      // sliced the chips in half. The offset is the header's own h-14 (3.5rem)
+      // plus its 1px border-b: measured 57px at 320/375/414/768/1280 alike.
+      // ⛔ Not a higher z-index: that would only bury the nav instead.
       className={cn(
-        "sticky top-0 z-20 overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] shadow-[var(--admin-shadow-subtle)] backdrop-blur-md transition-opacity",
+        "sticky top-0 z-20 md:top-[calc(3.5rem+1px)] overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] shadow-[var(--admin-shadow-subtle)] backdrop-blur-md transition-opacity",
         "bg-gradient-to-b from-[var(--admin-panel)]/95 to-[var(--admin-panel-muted)]/85",
         isPending && "pointer-events-none opacity-60"
       )}
