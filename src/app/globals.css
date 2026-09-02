@@ -33,6 +33,46 @@
   button {
     background-color: transparent;
   }
+
+  /* ⛔ THE REST OF THE MISSING RESET — ADMIN ONLY.
+   *
+   * The comment above explains that preflight is absent on purpose, and patches
+   * the ONE declaration it cost us at the time. A visual review of all 32 admin
+   * pages by four reviewers found the other two, and they are not subtle:
+   *
+   *   <ul>/<ol> keep the browser's list markers, so stray bullets sit beside
+   *     cards on /admin/bookings/[id], /admin/me, /admin/emails and
+   *     /admin/enquiries, and the booking breadcrumb prints its raw ordinal
+   *     numbers — "1. Bookings   3. #09A39848" — with the count skipping,
+   *     because the item between them is phone-only.
+   *   <fieldset> keeps the browser's 2px groove border, so a bright white
+   *     rectangle wraps the "Today / This week / This month" pickers on the
+   *     dashboard and the filter groups on /admin/emails.
+   *
+   * ⛔ SCOPED TO .admin-shell, for exactly the reason preflight was skipped in
+   * the first place: site-parity.css is a ported stylesheet that leans on the
+   * browser's defaults, and the public site was never audited. Scoping gives
+   * the admin the reset and leaves the customer site untouched — the same
+   * decision, and the same seam, as the overflow-x rule further down.
+   *
+   * ⚠️ These are element selectors, so every utility still wins: a list that
+   * asks for `list-disc`, or a fieldset that sets its own border, keeps it. */
+  .admin-shell :is(ul, ol) {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .admin-shell fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .admin-shell legend {
+    padding: 0;
+  }
 }
 
 html,
