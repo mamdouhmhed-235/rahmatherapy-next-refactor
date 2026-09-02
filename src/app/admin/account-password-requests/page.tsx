@@ -191,7 +191,11 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
     : "/admin/account-password-requests";
 
   return (
-    <div className="mx-auto w-full max-w-[68rem] space-y-5 sm:space-y-6">
+    /* No second max-width. AdminTopNav.tsx:381 already caps every admin page
+       at max-w-[100rem]; the extra 68rem cap here centred this page inside that
+       one and left a 96px gutter at 1280 where Services, Settings, Bookings and
+       Clients all sit at 32px. */
+    <div className="w-full space-y-5 sm:space-y-6">
       <AdminPageHeader
         title="Password-reset requests"
         description="Approve or reject staff requests to reset their password. Approval sends a one-time link to the requester's email."
@@ -233,7 +237,11 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
       ) : null}
 
       <nav aria-label="Filter by request status">
-        <ul className="-mx-1 flex list-none flex-nowrap items-center gap-0.5 overflow-x-auto px-1 pb-1 sm:gap-1 sm:flex-wrap sm:overflow-visible">
+        {/* Wraps at every width. Nowrap + overflow-x-auto left the fifth tab
+            ("All") 26px past the right edge at 320 with no scroll affordance,
+            so the page read as having four filters. sm and up already wrapped,
+            so nothing changes at 640 or above. */}
+        <ul className="-mx-1 flex list-none flex-wrap items-center gap-1 px-1 pb-1">
           {STATUS_TABS.map((tab) => {
             const isActive = tab.key === status;
             const tabLabel =
