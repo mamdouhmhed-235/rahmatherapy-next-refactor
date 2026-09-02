@@ -121,15 +121,44 @@ export function AdminActionMenu({
         <span className="sr-only">{label}</span>
       </button>
       {open ? (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={label}
-          onKeyDown={onMenuKeyDown}
-          className="absolute left-0 right-auto sm:left-auto sm:right-0 z-30 mt-1.5 grid min-w-48 max-w-[calc(100vw-1.5rem)] gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
-        >
-          {children}
-        </div>
+        <>
+          {/* Phone scrim. Sits INSIDE containerRef on purpose: the
+              outside-pointerdown effect above tests `contains()`, so a scrim
+              outside it would close the menu on pointerdown and swallow the tap
+              that was meant for the sheet. The onClick is what dismisses. */}
+          <div
+            aria-hidden="true"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 md:hidden"
+          />
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={label}
+            onKeyDown={onMenuKeyDown}
+            /* ⛔ BELOW md THIS IS A SHEET, NOT A DROPDOWN — and it has to be.
+             * An anchored `absolute` popup cannot survive down there: below md
+             * `#admin-main` is the scroll container (AdminTopNav.tsx:376) and its
+             * box STOPS where the in-flow bottom tab bar starts, so a popup that
+             * dropped past that line was clipped by the scroller AND painted
+             * under the z-40 bar. Measured on /admin/services at 320: the last
+             * item, "Hide from website" (top 573, h 44), landed under a bar whose
+             * top is ~583 and could not be scrolled out from under it.
+             * `fixed` + z-50 clears both — it escapes the scroller's clip and
+             * paints above the bar — and a capped, scrollable height means the
+             * item count no longer decides whether the last action is reachable.
+             * Safe because nothing on these pages establishes a containing block
+             * for `fixed` (no transform / filter / backdrop-filter above it).
+             *
+             * ⛔ md: is the switch, not sm:, because the tab bar is `md:hidden` —
+             * the constraint and the reset have to be the same breakpoint, or
+             * 640–767px keeps the clipped dropdown. At md and above every
+             * declaration below restores exactly what this menu rendered before. */
+            className="fixed bottom-2 left-2 right-2 z-50 grid max-h-[70dvh] min-w-48 gap-0.5 overflow-y-auto overscroll-contain rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)] md:absolute md:bottom-auto md:left-auto md:right-0 md:z-30 md:mt-1.5 md:max-h-none md:max-w-[calc(100vw-1.5rem)] md:overflow-y-visible md:overscroll-auto"
+          >
+            {children}
+          </div>
+        </>
       ) : null}
     </div>
   );
