@@ -155,6 +155,10 @@ function getUserFirstName(name: string): string {
   return first || name || "";
 }
 
+/** Width of the soft edge fade on the primary nav strip. Matches the 28px the
+ *  `.admin-nav-scrollbar` rule in globals.css has used for the right edge. */
+const NAV_EDGE_FADE = "28px";
+
 function getInitials(name: string): string {
   const cleaned = (name || "").trim();
   if (!cleaned) return "?";
@@ -218,22 +222,81 @@ export function AdminTopNav({
   // (0 of 127 captures at 1280 report it as a scroller), so the scrollWidth
   // guard makes this a strict no-op there — and below md the strip is `hidden`,
   // where every measurement reads 0 and the same guard returns early.
+  //
+  // ── …and fade whichever edge actually has links hidden behind it ───────────
+  // globals.css masks the LAST 28px of this strip unconditionally. That was a
+  // right-only cue on a strip that scrolls BOTH ways, and the nudge above is
+  // what made the left edge matter: once the strip is parked at scrollLeft > 0
+  // the FIRST link is cut by the logo divider with nothing to say why.
+  // Measured on /admin/clients at 768: scrollLeft 40, so "Dashboard" starts at
+  // 115.13 inside a box whose left edge is 155.13 — its icon is gone and the
+  // "D" is sliced in half. Unfaded that reads as a broken glyph rather than as
+  // a strip you can swipe.
+  //
+  // `navMask` only ever OVERRIDES that rule when the LEFT edge has something
+  // hidden behind it. When nothing is hidden on the left — the strip is parked
+  // at the start, or it does not scroll at all — it stays `undefined`, no
+  // inline style is emitted, and the globals.css rule renders those states
+  // byte-for-byte as they render today. It is also `undefined` on the server
+  // and on the first client render, so hydration matches and a no-JS render is
+  // unchanged.
+  //
+  // ⛔ `mask-image` paints; it does not lay out. Nothing in this row changes
+  // size, so the 744.00 account-button right edge at 768px cannot move.
+  // ⛔ At 1280 the strip is not a scroller (measured: scrollWidth 655 ==
+  // clientWidth 655, links ending 186px short of the box), so `fadeLeft` is
+  // false, nothing is emitted, and 1280 is untouched — proven by a 0-pixel
+  // image diff of the header, not by argument.
+  //
+  // The one state that loses the right fade is "scrolled to the end", where
+  // there is nothing further right to hint at. That is a repair too: at 768 on
+  // /admin/staff the old unconditional 28px was dissolving the right-hand side
+  // of the ACTIVE "Staff" pill, which sits hard against the box edge there.
   const navRef        = useRef<HTMLElement>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
+  const [navMask, setNavMask] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const nav  = navRef.current;
-    const link = activeLinkRef.current;
-    if (!nav || !link) return;               // no nav, or no active page in the strip
-    if (nav.scrollWidth <= nav.clientWidth) return;  // not scrolling — nothing to do
-    const navBox  = nav.getBoundingClientRect();
-    const linkBox = link.getBoundingClientRect();
-    const gutter  = 8;                       // leave a sliver of the neighbour showing
-    if (linkBox.right > navBox.right) {
-      nav.scrollLeft += linkBox.right - navBox.right + gutter;
-    } else if (linkBox.left < navBox.left) {
-      nav.scrollLeft -= navBox.left - linkBox.left + gutter;
+    const nav = navRef.current;
+    if (!nav) return;
+
+    function syncMask() {
+      const el = navRef.current;
+      if (!el) return;
+      const hidden    = el.scrollWidth - el.clientWidth;
+      const fadeLeft  = hidden > 1 && el.scrollLeft > 1;
+      const fadeRight = hidden > 1 && el.scrollLeft < hidden - 1;
+      setNavMask(
+        !fadeLeft
+          // Nothing hidden on the left. globals.css already draws exactly the
+          // cue this state wants, so emit nothing and leave those pixels alone.
+          ? undefined
+          : fadeRight
+            ? `linear-gradient(to right, transparent 0, #000 ${NAV_EDGE_FADE}, #000 calc(100% - ${NAV_EDGE_FADE}), transparent 100%)`
+            : `linear-gradient(to right, transparent 0, #000 ${NAV_EDGE_FADE})`
+      );
     }
+
+    const link = activeLinkRef.current;
+    // Nudge first, then read the resting position the nudge left behind.
+    if (link && nav.scrollWidth > nav.clientWidth) {  // link: active page is in the strip
+      const navBox  = nav.getBoundingClientRect();
+      const linkBox = link.getBoundingClientRect();
+      const gutter  = 8;                     // leave a sliver of the neighbour showing
+      if (linkBox.right > navBox.right) {
+        nav.scrollLeft += linkBox.right - navBox.right + gutter;
+      } else if (linkBox.left < navBox.left) {
+        nav.scrollLeft -= navBox.left - linkBox.left + gutter;
+      }
+    }
+    syncMask();
+
+    nav.addEventListener("scroll", syncMask, { passive: true });
+    window.addEventListener("resize", syncMask);
+    return () => {
+      nav.removeEventListener("scroll", syncMask);
+      window.removeEventListener("resize", syncMask);
+    };
   }, [pathname]);
 
   // Below md the shell is a full-height column: header, scrolling <main>, then
@@ -331,7 +394,15 @@ export function AdminTopNav({
            *  `overflow-x-auto` + `admin-nav-scrollbar` keeps the links inside the
            *  shrunken box as a swipeable strip; `py-1 -my-1` gives the 2px focus
            *  ring room inside that scroll container without moving anything. */}
-          <nav ref={navRef} className="admin-nav-scrollbar -my-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto py-1 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
+          <nav
+            ref={navRef}
+            /* Scroll-aware edge fade — see the navMask note above. Inline so it
+               overrides the right-only mask in globals.css; `undefined` before
+               the first measure, which leaves that rule in charge. */
+            style={navMask ? { maskImage: navMask, WebkitMaskImage: navMask } : undefined}
+            className="admin-nav-scrollbar -my-1 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto py-1 text-[var(--admin-nav-text)] md:flex"
+            aria-label="Admin navigation"
+          >
             {primaryItems.map((item) => {
               const active = isActive(item.href, pathname);
               const label  = getNavLabel(item, variant);
