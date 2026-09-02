@@ -372,10 +372,22 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       {/* Description rendered outside AdminPageHeader so it wraps cleanly at 375.
           Width clamped to (100vw − 2rem) so it respects the viewport even when
           the shared AdminPageScaffold grid track auto-expands to fit a wider
-          sibling (filter form, AdminPanel). */}
-      <p className="-mt-2 mb-4 max-w-[calc(100vw-2rem)] text-sm leading-6 text-balance text-[var(--admin-text-muted)] sm:mb-6 sm:max-w-3xl">
-        {pageDescription}
-      </p>
+          sibling (filter form, AdminPanel).
+          ⛔ The pull-up lives on this WRAPPER, not on the <p>. site-parity.css
+          sets an UNLAYERED `p, h1, h2, h3 { margin: 0 }`, and unlayered rules
+          beat @layer utilities — so the `-mt-2 mb-4 sm:mb-6` this element used
+          to carry computed to 0px and did nothing. That left the header's
+          `mb-5`/`sm:mb-7` stacked on the scaffold's `gap-6`: a measured 44–60px
+          hole between the brand rule and this line. -mt-9 / -mt-11 cancel that
+          stack (20+24 below sm, 28+24 from sm up) and leave 8px, near the 6px
+          AdminPageHeader leaves when it renders a description itself. Bottom
+          spacing is the scaffold's gap-6, which is why nothing replaces the
+          dead `mb-4`. */}
+      <div className="-mt-9 sm:-mt-11">
+        <p className="max-w-[calc(100vw-2rem)] text-sm leading-6 text-balance text-[var(--admin-text-muted)] sm:max-w-3xl">
+          {pageDescription}
+        </p>
+      </div>
 
       {teamAccess.canCreateStaff ? (
         <div className="mb-4 sm:hidden">
@@ -898,7 +910,13 @@ function StaffRow({
       <Avatar name={member.name} dim={!member.active} />
 
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-start justify-between gap-2">
+        {/* flex-wrap so the status chip drops to its own line instead of
+            squeezing the name track: at 320 "Bookings off" left the h2 38.7px
+            wide and "Phase10 COORDINATOR" came out over SIX character-broken
+            lines. Wrapping only fires when the line is genuinely too short —
+            at 768/1280 the top line has ~700px and wants ~260, so it never
+            fires there and those widths are byte-identical. */}
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h2 className="min-w-0 break-words font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
               {member.name}
@@ -1038,14 +1056,20 @@ function StaffRow({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2 self-stretch">
+      {/* Rail runs across, not down. Stacked (flex-col) the workload pill sat
+          on top and pushed the chevron onto a second line, 32px below the name
+          — on the same-gender team view that is only the viewer's own row, so
+          one row in the list had an orphaned chevron and stood 6px taller. The
+          pill is `hidden sm:block`, so below 640 this rail still holds the
+          chevron alone and every narrow width is unchanged. */}
+      <div className="flex shrink-0 items-center gap-2">
         {showWorkload ? (
           <div className="hidden sm:block">
             <WorkloadPill count={workload} />
           </div>
         ) : null}
         <ChevronRight
-          className="size-5 self-center text-[var(--admin-text-muted)] transition-transform group-hover:translate-x-0.5 sm:self-end"
+          className="size-5 shrink-0 text-[var(--admin-text-muted)] transition-transform group-hover:translate-x-0.5"
           aria-hidden="true"
         />
       </div>
