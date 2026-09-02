@@ -61,8 +61,20 @@ export function ClientRowMenu({
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
       </AdminPopover.Trigger>
+      {/* ⛔ 2.5rem, not 1rem, and the number is load-bearing at 320.
+       * `align="end"` wants the panel's right edge on the trigger's right edge
+       * (x≈292 of 320: the list column ends at 304 and the button is inset 12).
+       * At `100vw-1rem` the panel is 304 wide, so that would put its left edge
+       * at −12, Radix clamped it to 0, and it sat glued to the screen edge with
+       * no visible tie to the button — the audit's exact complaint. At
+       * `100vw-2.5rem` it is 280 wide, 292−280 = 12 ≥ 0, so no clamp fires and
+       * the right edges line up.
+       * ⛔ NO-OP FROM 392px UP: both `min()`s pick 22rem once 100vw−2.5rem
+       * exceeds 352, so 414, 768 and 1280 render byte-identically to before.
+       * `mobileScrim` dims the page below md only. */}
       <AdminPopover.Content
-        className="w-[min(calc(100vw-1rem),22rem)] p-0"
+        className="w-[min(calc(100vw-2.5rem),22rem)] p-0"
+        mobileScrim
         onInteractOutside={keepMenuOpenForDialog}
         onFocusOutside={keepMenuOpenForDialog}
       >
