@@ -35,7 +35,13 @@ export function MobileStickyActionBar({ action }: MobileStickyActionBarProps) {
       // 100dvh tall, so the bar still occupies the bottom 3.5rem of the
       // viewport — and a `fixed` element still resolves against the viewport,
       // so it still lands on top. The offset is still required.
-      className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 pt-3 md:hidden"
+      // The upward shadow is the same one the admin's other two fixed bottom
+      // bars carry (SettingsForm.tsx, TemplateEditor.tsx). Without it the bar
+      // is a flat slab in the same --admin-panel as the stat tiles it scrolls
+      // over, so it read as a row of tiles sliced in half rather than as a bar
+      // floating above them. --admin-shadow-ink-04 is inverted in dark mode
+      // (0.45 black), so the separation shows in both themes.
+      className="fixed bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] inset-x-0 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:hidden"
       // A flat 0.75rem: the tab bar underneath already owns the iOS home-bar
       // inset, and `bottom` above already clears it, so keeping the max() here
       // would double-count it.
