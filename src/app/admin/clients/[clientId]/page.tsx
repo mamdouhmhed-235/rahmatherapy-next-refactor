@@ -426,15 +426,22 @@ export default async function ClientDetailPage({
     hasAssignedBooking: hasAllClientAccess ? false : hasAssignedClientAccess,
   });
 
-  // A soft-deleted client is gone as far as every working surface is concerned
-  // (brief §5.3): the profile 404s for every role, so no Edit, Delete, note or
-  // "Book again" affordance below is reachable for one. The list page keeps its
-  // own "Show deleted" view for the audit trail.
-  if (!client || client.deleted_at) notFound();
-
+  // Refusal is decided BEFORE existence. The fetcher only reads the client row
+  // once `canViewClient` already holds (client-detail-data.ts), so a therapist
+  // with no assignment on this client always arrives here with `client: null`
+  // — which made the check below fire first and hand them the framework's bare
+  // 404: no admin shell, no nav, no way back. Ordered this way they get the
+  // same branded "access limited" card every sibling clients route shows, and a
+  // refused caller still learns nothing about whether the record exists.
   if (!clientAccess.canViewClient) {
     return <InsufficientPermissions />;
   }
+
+  // A soft-deleted client is gone as far as every working surface is concerned
+  // (brief §5.3): the profile 404s for every role that could otherwise open it,
+  // so no Edit, Delete, note or "Book again" affordance below is reachable for
+  // one. The list page keeps its own "Show deleted" view for the audit trail.
+  if (!client || client.deleted_at) notFound();
 
   // C-16 closeout — LIFETIME figures read `lifetimeBookings` (the whole
   // history, PII-free projection), never `bookingHistory` (the rendered rail,
@@ -610,7 +617,12 @@ export default async function ClientDetailPage({
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
+          {/* No `shrink-0`: it pinned this row at its 372px max-content width,
+              so its own `flex-wrap` never had a reason to fire and the primary
+              "New booking" was cut off by the screen edge below ~404px. Left
+              shrinkable it wraps instead. Wider viewports are untouched — a
+              flex item only shrinks once it alone overflows its line. */}
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             <PrintRecordButton />
             {/* Brief §4.2 order: Print · Edit · Delete · Book again. Edit is
                 gated on the client permission the destination route itself
