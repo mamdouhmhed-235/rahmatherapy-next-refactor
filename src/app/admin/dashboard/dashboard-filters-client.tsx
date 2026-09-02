@@ -345,10 +345,18 @@ export function DashboardFiltersClient({
           <legend className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">
             Date range
           </legend>
+          {/* Wraps rather than scrolls, exactly like the same control on /admin/audit
+              (AuditFilterStrip.tsx:376). The six chips need 600px; at 320 they had 262,
+              so "This month", "Last 30 days" and "Custom" sat off screen behind a
+              deliberately invisible scrollbar with nothing to say they were there.
+              `inline-flex` is kept, not swapped for `flex`: a shrink-to-fit box is
+              max-content wide wherever the chips fit, so at 1280 (600px in far more
+              room, no scroller in the capture at all) this renders byte-identically —
+              flex-wrap only does something once the line actually overflows. */}
           <div
             role="group"
             aria-label="Date range presets"
-            className="inline-flex min-w-0 max-w-full snap-x snap-mandatory items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+            className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5"
           >
             {presets.map((preset) => {
               const isActive = preset.key === activePreset;
@@ -359,7 +367,7 @@ export function DashboardFiltersClient({
                   aria-current={isActive ? "page" : undefined}
                   scroll={false}
                   className={cn(
-                    "group inline-flex h-11 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
+                    "group inline-flex h-11 shrink-0 items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
                     isActive
                       ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_6px_var(--admin-shadow-ink-28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
                       : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
