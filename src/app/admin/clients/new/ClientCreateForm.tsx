@@ -453,14 +453,23 @@ function StickySaveBar({
 }) {
   // bottom-0, not bottom-14: the mobile tab bar is no longer a fixed overlay
   // sitting in the bottom 56px, so this save bar sticks to the real bottom.
+  //
+  // -1.5rem, not 0: a sticky box is pinned to its scroller's CONTENT box, and
+  // <main id="admin-main"> carries `pb-6` (AdminTopNav.tsx). At bottom-0 the bar
+  // stopped 24px short of the tab bar and the form scrolled through the strip
+  // between the two. The negative offset spends that padding so the bar docks
+  // flush. `md:bottom-auto` still takes it out of play once the bar is static.
   return (
     <div
-      className="sticky bottom-0 z-30 -mx-4 mt-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 md:static md:bottom-auto md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0"
+      className="sticky bottom-[-1.5rem] z-30 -mx-4 mt-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 md:static md:bottom-auto md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pb-0"
     >
-      <div className="flex flex-col gap-2 md:ml-auto md:flex-row md:items-center md:gap-3 md:w-fit">
+      {/* One row on a phone, not two stacked full-width buttons. Stacked, this
+          bar was 129px tall and covered "Full name" at scroll 0 on a 320x640
+          screen. The 1:2 split matches the staff profile save bar. */}
+      <div className="flex items-center gap-2 md:ml-auto md:w-fit md:gap-3">
         <Link
           href="/admin/clients"
-          className="inline-flex h-12 w-full items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-5 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:h-10 md:w-auto"
+          className="inline-flex h-12 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:h-10 md:flex-initial md:px-5"
         >
           Cancel
         </Link>
@@ -468,7 +477,7 @@ function StickySaveBar({
           type="submit"
           disabled={submitDisabled}
           aria-busy={pending || undefined}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-5 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-[background-color,transform] duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--admin-primary)] disabled:active:scale-100 md:h-10 md:w-auto"
+          className="inline-flex h-12 flex-[2] items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-[background-color,transform] duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--admin-primary)] disabled:active:scale-100 md:h-10 md:flex-initial md:px-5"
         >
           {pending ? (
             <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
@@ -635,8 +644,13 @@ function FormField({
     ),
   };
 
+  // `content-start`: as a stretched cell of the two-column `md:grid-cols-2`
+  // rows, this inner grid inherits the row height of its taller neighbour and
+  // `align-content: stretch` shares the surplus between its own rows. That
+  // pushed the Postcode input ~19px below the City input beside it, because
+  // City carries a two-line helper and Postcode carries none.
   return (
-    <div className="grid gap-1.5">
+    <div className="grid content-start gap-1.5">
       <label
         htmlFor={fieldId}
         className="flex items-baseline gap-1 text-sm font-medium text-[var(--admin-heading)]"
