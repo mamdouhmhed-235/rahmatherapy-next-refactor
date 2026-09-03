@@ -508,9 +508,16 @@ function ParticipantSubRow({
           {genderIcon}
         </span>
       </div>
+      {/* ⛔ On a phone this is an INDENTED SUB-LINE, not a right-aligned tail.
+        * With `justify-between` the status sat right while it fitted and jumped
+        * to the LEFT the moment it wrapped — so in a three-person group the
+        * status of one participant appeared directly beneath the name of
+        * another, and there was no way to tell which was whose. Claiming a full
+        * line below sm makes the pairing unambiguous; sm and up keep the
+        * original right-aligned row. */}
       <span
         className={cn(
-          "shrink-0 text-xs",
+          "shrink-0 basis-full pl-6 text-xs sm:basis-auto sm:pl-0",
           assignedTherapistName
             ? "text-[var(--admin-body)]"
             : "text-[var(--admin-status-attention-text)]"
