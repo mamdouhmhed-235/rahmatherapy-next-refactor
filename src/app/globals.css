@@ -213,6 +213,29 @@ html:not(:has(.admin-shell)) body {
   text-decoration-color: var(--admin-accent);
 }
 
+/* ⛔ The password-reset card, when it is nested inside the admin shell.
+ *
+ * `/admin/password-reset` ships the STANDALONE page chrome it needs when signed
+ * out: `<main id="admin-main">` with `min-height: 100dvh`, centred vertically.
+ * A signed-in user reaching it gets that whole page rendered INSIDE the admin
+ * shell's own `<main id="admin-main">` — two full-height columns stacked, so at
+ * 320 the only button sat entirely below the fold and the email field was cut
+ * in half by the bottom tab bar.
+ *
+ * `#admin-main #admin-main` matches ONLY that pathology: an element carrying
+ * the id nested inside another carrying the same id. It cannot match the
+ * signed-out page, which has no admin shell around it.
+ *
+ * ⚠️ This fixes the LAYOUT half. The duplicate id and the two nested <main>
+ * landmarks are a markup fault that needs the route moved out of the admin
+ * layout — recorded in THERAPIST-FINDINGS.md, not fixable from CSS. */
+#admin-main #admin-main {
+  min-height: 0;
+  justify-content: flex-start;
+  padding-top: 0;
+  padding-bottom: 1.5rem;
+}
+
 /* ⛔ Lining figures for the admin's display serif.
  *
  * Cormorant Garamond ships OLD-STYLE figures: digits with ascenders and
