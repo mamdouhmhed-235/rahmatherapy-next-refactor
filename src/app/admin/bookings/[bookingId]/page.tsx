@@ -787,7 +787,13 @@ function ParticipantRow({
                 {item.service_name_snapshot}
               </span>
               {!claimableOnly && item.service_price_snapshot ? (
-                <span>· {formatMoney(item.service_price_snapshot)}</span>
+                /* ⛔ `shrink-0 whitespace-nowrap`: at 320 the separator and the
+                 * amount broke apart — "·" ended one line and "£60.00" started
+                 * the next, reading as a stray bullet above a loose number. A
+                 * price and its separator are one token. */
+                <span className="shrink-0 whitespace-nowrap">
+                  · {formatMoney(item.service_price_snapshot)}
+                </span>
               ) : null}
             </li>
           ))}
