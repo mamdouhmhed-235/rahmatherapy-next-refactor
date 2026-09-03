@@ -968,7 +968,7 @@ function ReminderRow({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/admin/bookings/${booking.id}`}
-            className="min-w-0 break-words text-sm font-semibold text-[var(--admin-heading)] underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
+            className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-sm font-semibold text-[var(--admin-heading)] underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0"
           >
             {booking.contact_full_name ?? "Unknown contact"}
           </Link>
@@ -1073,7 +1073,7 @@ function ReviewRow({ candidate }: { candidate: ReviewRequestCandidate }) {
       <div className="min-w-0">
         <Link
           href={`/admin/bookings/${candidate.id}`}
-          className="min-w-0 break-words text-sm font-semibold text-[var(--admin-heading)] underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
+          className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-sm font-semibold text-[var(--admin-heading)] underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0"
         >
           {candidate.contact_full_name ?? "Unknown contact"}
         </Link>
