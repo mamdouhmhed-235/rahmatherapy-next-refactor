@@ -987,7 +987,7 @@ function ReminderRow({
         </p>
         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--admin-text-muted)]">
           {hasRecipient ? (
-            <span className="min-w-0 truncate">{booking.contact_email}</span>
+            <span className="min-w-0 truncate" title={booking.contact_email ?? undefined}>{booking.contact_email}</span>
           ) : (
             <Link
               href={`/admin/bookings/${booking.id}`}
@@ -1081,7 +1081,7 @@ function ReviewRow({ candidate }: { candidate: ReviewRequestCandidate }) {
           {formatReminderDateTime(candidate.booking_date, candidate.start_time)}
         </p>
         <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
-          <span className="min-w-0 truncate">{candidate.recipient_email}</span>
+          <span className="min-w-0 truncate" title={candidate.recipient_email ?? undefined}>{candidate.recipient_email}</span>
         </p>
       </div>
 
