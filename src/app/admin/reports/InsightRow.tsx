@@ -77,14 +77,22 @@ export function InsightRow({ insightId, severity, message, drillHref }: InsightR
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-md border px-4 py-3 transition-opacity",
+        /* ⛔ `flex-wrap` + `basis-full` on the message below sm. The icon, the
+         * message, the drill-in link and the dismiss button all shared ONE line
+         * at every width, which left the message ~116px of a 320px screen — two
+         * short sentences ran to four and six lines and filled the whole first
+         * screen. Wrapping drops the actions onto their own row on a phone;
+         * sm and up are unchanged. */
+        "flex flex-wrap items-center gap-3 rounded-md border px-4 py-3 transition-opacity sm:flex-nowrap",
         severityClasses(severity),
         isPending && "opacity-60"
       )}
       data-insight-id={insightId}
     >
       <SeverityIcon severity={severity} />
-      <p className="min-w-0 flex-1 text-sm leading-5">{message}</p>
+      <p className="min-w-0 flex-1 basis-[calc(100%-2.5rem)] text-sm leading-5 sm:basis-auto">
+        {message}
+      </p>
       {drillHref ? (
         <Link
           href={drillHref}
