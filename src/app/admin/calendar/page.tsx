@@ -1548,7 +1548,12 @@ function CalendarBookingRow({
       title={groupInfo ? `${clientName} — ${groupInfo.count} participants` : undefined}
       className="group block rounded-[var(--admin-radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
     >
-      <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_var(--admin-shadow-ink-08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[var(--admin-border-print)] print:shadow-none">
+      {/* ⛔ Single column below sm. The fixed 4.25rem time column plus the hour
+       * ruler outside the card starved the flexible name column at 320: the
+       * client name wrapped one word per line and the card grew to 404px tall.
+       * Stacking gives the name the card's full width; the sm+ three-column
+       * layout is untouched. */}
+      <article className="grid grid-cols-1 gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_var(--admin-shadow-ink-08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[var(--admin-border-print)] print:shadow-none">
         {/* Time block (left column) */}
         <div className="flex flex-col items-start border-r border-[var(--admin-border)] pr-3">
           <span
