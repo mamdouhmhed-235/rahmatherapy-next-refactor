@@ -674,7 +674,13 @@ function ClaimableStrip({
           {claimable.slice(0, 5).map((booking) => (
             <li
               key={booking.id}
-              className="min-w-[280px] shrink-0 lg:min-w-0"
+              /* ⛔ 280px was a hard floor inside a 246px scroll slot at 320, so
+               * no claimable card could ever fit and the second sat 293px off
+               * the right edge with nothing to suggest it was there. A relative
+               * width fits the slot at every phone size AND leaves the next card
+               * peeking, which is the scroll cue that was missing. The 280px cap
+               * keeps the original size everywhere it already fitted. */
+              className="w-[86%] max-w-[280px] shrink-0 lg:w-auto lg:min-w-0 lg:max-w-none"
               style={{ scrollSnapAlign: "start" }}
             >
               <ClaimableCard
