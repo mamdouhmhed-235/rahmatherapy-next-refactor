@@ -761,7 +761,11 @@ function FieldText({
   defaultValue?: string;
   placeholder?: string;
 }) {
-  const id = `bookings-filter-${name}`;
+  // ⛔ Both FilterForm instances (the md+ inline form and the phone Refine
+  // sheet) render at the same time, so a fixed id collided and every label in
+  // the sheet pointed at the hidden desktop input instead of its own field.
+  // useId() is per-instance, so the two forms can no longer share an id.
+  const id = `bookings-filter-${name}-${React.useId()}`;
   return (
     <div className="grid gap-1.5">
       <label
@@ -793,7 +797,11 @@ function FieldSelect({
   defaultValue?: string;
   children: React.ReactNode;
 }) {
-  const id = `bookings-filter-${name}`;
+  // ⛔ Both FilterForm instances (the md+ inline form and the phone Refine
+  // sheet) render at the same time, so a fixed id collided and every label in
+  // the sheet pointed at the hidden desktop input instead of its own field.
+  // useId() is per-instance, so the two forms can no longer share an id.
+  const id = `bookings-filter-${name}-${React.useId()}`;
   return (
     <div className="grid gap-1.5">
       <label
