@@ -309,8 +309,14 @@ export function AdminPanel({
       {title || description || badge || actions ? (
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
+            {/* ⛔ An OPEN help panel drops to its own line. The <details> is a
+             * flex item beside the heading, so opening it stole the heading's
+             * width — "Availability mode" collapsed to a two-line stub and
+             * pushed the very control it explains off the bottom of a phone.
+             * `:has()` is already used elsewhere in this codebase; closed
+             * panels are completely unaffected. */}
             {title ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 [&:has(details[open])>details]:basis-full">
                 <TitleTag className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
                   {title}
                 </TitleTag>
