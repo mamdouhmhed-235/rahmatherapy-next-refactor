@@ -213,6 +213,20 @@ html:not(:has(.admin-shell)) body {
   text-decoration-color: var(--admin-accent);
 }
 
+/* ⛔ Lining figures for the admin's display serif.
+ *
+ * Cormorant Garamond ships OLD-STYLE figures: digits with ascenders and
+ * descenders, sized like lowercase letters. Beautiful in running prose, wrong
+ * for a user interface — a booking reference rendered in it reads as Roman
+ * numerals, and a count of "10" reads as "IO".
+ *
+ * `:where()` contributes ZERO specificity, so this whole selector weighs the
+ * same as `.admin-tnum` below and loses to it on source order. That is
+ * deliberate: anything explicitly asking for tabular figures must keep them. */
+.admin-shell :where(.font-display, h1, h2, h3) {
+  font-variant-numeric: lining-nums;
+}
+
 /* Tabular numerals — currency, time, count columns where digits must align.
  * Use either Tailwind's `tabular-nums` or this opt-in class. */
 .admin-tnum {
