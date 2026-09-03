@@ -826,7 +826,16 @@ export default async function ClientDetailPage({
                   aria-label={`${tab} bookings`}
                 >
                   {visibleBookings.map((booking) => (
-                    <li key={booking.id} className="list-none">
+                    /* ⛔ `min-w-0`: this <li> is the grid item, so it defaults to
+                     * `min-width: auto` = its min-content — and the booking
+                     * address inside is `truncate`, which is `nowrap` now that
+                     * truncate works again (cc724de). Without this the row
+                     * reported its full 296px un-truncated width and stretched
+                     * the whole page past 320. Measured live: page 288/317
+                     * without, 288/288 with. Fixing the <a> or the surrounding
+                     * <section> instead changed nothing — this is the only
+                     * element in the chain that matters. */
+                    <li key={booking.id} className="min-w-0 list-none">
                       <BookingHistoryCard booking={booking} today={today} />
                     </li>
                   ))}
