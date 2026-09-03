@@ -957,9 +957,34 @@ export interface GenderCapacity {
   unassignedAssignments: number;
 }
 
-export function findNextAppointment(bookings: ReportBooking[], today: string): ReportBooking | null {
+/**
+ * The next appointment that has not started yet.
+ *
+ * ⛔ `nowTime` ("HH:MM", the clinic's own clock) is what makes this usable on a
+ * screen that only loads TODAY. Without it the filter is `booking_date > today`
+ * — strictly after today — so on the dashboard, whose window is `from = to =
+ * today`, it could never match anything and returned null every single time.
+ * That is how "Next visit: Nothing scheduled" came to sit directly above a list
+ * of five visits happening that day.
+ *
+ * With `nowTime` supplied, today's later bookings count too, which is what
+ * "next" means to someone reading it at 09:00 with a 16:30 visit ahead.
+ *
+ * Omitting `nowTime` keeps the original tomorrow-onwards behaviour exactly, so
+ * existing callers and their tests are unaffected.
+ */
+export function findNextAppointment(
+  bookings: ReportBooking[],
+  today: string,
+  nowTime?: string
+): ReportBooking | null {
   const upcoming = bookings
-    .filter((b) => b.booking_date > today && b.status !== "cancelled" && b.status !== "no_show")
+    .filter((b) => {
+      if (b.status === "cancelled" || b.status === "no_show") return false;
+      if (b.booking_date > today) return true;
+      // Today counts only when we know the time, and only if it is still ahead.
+      return Boolean(nowTime) && b.booking_date === today && b.start_time >= nowTime!;
+    })
     .sort((a, b) => a.booking_date.localeCompare(b.booking_date) || a.start_time.localeCompare(b.start_time));
   return upcoming[0] ?? null;
 }

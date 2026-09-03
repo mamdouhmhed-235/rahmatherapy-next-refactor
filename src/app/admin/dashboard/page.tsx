@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
+import { addBusinessDays, getBusinessDate, getBusinessTime } from "@/lib/time/london";
 import {
   canViewAssignedBookings,
   getStaffProfile,
@@ -75,6 +75,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   if (!dashboardAccess.access) return <InsufficientPermissions />;
 
   const today = getBusinessDate();
+  // The clinic clock, so "next visit" can include a booking later TODAY.
+  // Without it findNextAppointment only looks from tomorrow, and the dashboard
+  // only ever loads today — so the tile said "Nothing scheduled" every time.
+  const nowTime = getBusinessTime();
   const params = await searchParams;
   const filters = parseReportFilters({
     range: params.range ?? "today",
@@ -211,7 +215,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
   const stripeNextAppointment =
     stripeVariant === "therapist"
-      ? findNextAppointment(data.bookings, today)
+      ? findNextAppointment(data.bookings, today, nowTime)
       : null;
   // New enquiries CREATED in the stripe period — for Coordinator tile 1.
   // `stripeData.enquiries` returns all visible enquiries unfiltered by date,

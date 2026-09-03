@@ -65,6 +65,22 @@ export function getBusinessDate(now = new Date()) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+/**
+ * The current clock time in the clinic's own timezone, as "HH:MM".
+ *
+ * Pairs with `getBusinessDate()`: that answers "what day is it here", this
+ * answers "what time is it here". Needed wherever a decision depends on how much
+ * of the working day is left — e.g. "the next visit" must not offer one that has
+ * already started.
+ *
+ * ⛔ Derived from the same Europe/London parts as every other function in this
+ * file, never from the server's local clock.
+ */
+export function getBusinessTime(now = new Date()) {
+  const { hour, minute } = getBusinessParts(now);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 export function addBusinessDays(date: string, days: number) {
   const { year, month, day } = parseDate(date);
   const utcDate = new Date(Date.UTC(year, month - 1, day + days, 12));
