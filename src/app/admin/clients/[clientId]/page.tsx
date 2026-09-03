@@ -1664,7 +1664,14 @@ function BookingHistoryCard({
       )}
     >
       <div className="flex flex-wrap items-start gap-4 sm:flex-nowrap">
-        <div className="min-w-0 flex-1">
+        {/* ⛔ `basis-full` below sm is load-bearing. The row already said
+         * `flex-wrap ... sm:flex-nowrap`, so it MEANT to stack on a phone — but
+         * it never did: `min-w-0 flex-1` lets this column shrink to nothing, so
+         * the line always "fits" and wrapping never triggers. The shrink-0 price
+         * column then won with its ~152px of max-content, squeezing the date,
+         * service and address into 47.75px at 320. Claiming a full basis forces
+         * the intended wrap instead of starving this column. */}
+        <div className="min-w-0 flex-1 basis-full sm:basis-auto">
           <div className={cn(titleClass)}>
             <p className="text-base font-semibold leading-tight text-[var(--admin-heading)]">
               {formatDate(booking.booking_date)}
