@@ -916,6 +916,16 @@ export async function getBookingsListData(
   const { profile, canViewAll, limit, offset, predicates } = params;
   const canClaim = canClaimAssignments(profile);
   const plan = predicates ? buildBookingPredicatePlan(predicates) : null;
+  /**
+   * ⛔ "Today" reads FORWARDS. Every other view is a record of what happened,
+   * so newest-first is right; "today" is a plan for the hours ahead, and
+   * newest-first put a therapist's 18:30 visit at the top and their 08:00 —
+   * the one they need next — last, roughly 1,890px down a phone screen.
+   *
+   * Safe to vary by view: `predicates` (which carries `view`) is part of the
+   * unstable_cache key below, so the two orderings cannot share an entry.
+   */
+  const chronological = predicates?.view === "today";
 
   const cached = unstable_cache(
     async (): Promise<BookingRecord[]> => {
@@ -933,8 +943,8 @@ export async function getBookingsListData(
             .select(bookingSelectWith(BOOKING_SELECT, plan?.embeds ?? [])),
           plan?.steps ?? []
         )
-          .order("booking_date", { ascending: false })
-          .order("start_time", { ascending: false })
+          .order("booking_date", { ascending: chronological })
+          .order("start_time", { ascending: chronological })
           // Tiebreak (plan §4) — two bookings sharing a date and start time
           // would otherwise order non-deterministically, which at a page
           // boundary shows one row twice and drops another.
@@ -960,8 +970,8 @@ export async function getBookingsListData(
                     .in("id", scopedIds.assignedIds),
                   preCap?.steps ?? []
                 )
-                  .order("booking_date", { ascending: false })
-                  .order("start_time", { ascending: false })
+                  .order("booking_date", { ascending: chronological })
+                  .order("start_time", { ascending: chronological })
                   .limit(SCOPED_BRANCH_ROW_CAP)
                   .returns<BookingRecord[]>()
               ).data ?? []
@@ -977,16 +987,27 @@ export async function getBookingsListData(
                     .in("id", claimableOnlyIds),
                   preCap?.steps ?? []
                 )
-                  .order("booking_date", { ascending: false })
-                  .order("start_time", { ascending: false })
+                  .order("booking_date", { ascending: chronological })
+                  .order("start_time", { ascending: chronological })
                   .limit(SCOPED_BRANCH_ROW_CAP)
                   .returns<Partial<BookingRecord>[]>()
               ).data?.map(normalizeClaimableBooking) ?? []
             : []
         ),
+      // ⛔ This in-memory sort, not the `.order()` above, is what the
+      // therapist-scoped branch actually returns — the two id-bounded reads are
+      // merged and re-sorted here. Changing only the SQL order would have left
+      // "today" running backwards while looking fixed.
       ].sort((a, b) => (
-        b.booking_date.localeCompare(a.booking_date) ||
-        b.start_time.localeCompare(a.start_time)
+        chronological
+          ? (
+              a.booking_date.localeCompare(b.booking_date) ||
+              a.start_time.localeCompare(b.start_time)
+            )
+          : (
+              b.booking_date.localeCompare(a.booking_date) ||
+              b.start_time.localeCompare(a.start_time)
+            )
       ));
     },
     [
