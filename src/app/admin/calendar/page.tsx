@@ -499,7 +499,11 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <form
         action="/admin/calendar"
         method="get"
-        className="sticky top-0 z-20 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3 shadow-[0_1px_4px_var(--admin-shadow-ink-06)] print:hidden"
+        /* ⛔ Sticky only from sm up. On a 320 phone this filter wraps to several
+         * rows and then PINS them there — it held 54% of the usable screen at
+         * all times, so barely one booking was ever visible. Above sm it fits in
+         * one or two rows and staying put is the point, so that is untouched. */
+        className="top-0 z-20 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3 shadow-[0_1px_4px_var(--admin-shadow-ink-06)] sm:sticky print:hidden"
         aria-label="Calendar filters"
       >
         <div className="flex flex-wrap items-center gap-3">
@@ -1797,7 +1801,7 @@ function SidebarDisclosure({
           <span className="flex items-center gap-2">
             <CalendarClock className="size-4" aria-hidden="true" />
             <span>Claimable today</span>
-            <span className="inline-flex items-center justify-center rounded-full bg-white/70 px-1.5 text-[0.6875rem] font-semibold tabular-nums">
+            <span className="inline-flex items-center justify-center rounded-full bg-white/70 px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-status-attention-text)]">
               {count}
             </span>
           </span>
@@ -1847,7 +1851,7 @@ function SidebarDisclosure({
         <span className="flex items-center gap-2">
           <CalendarClock className="size-4" aria-hidden="true" />
           <span>Unassigned</span>
-          <span className="inline-flex items-center justify-center rounded-full bg-white/70 px-1.5 text-[0.6875rem] font-semibold tabular-nums">
+          <span className="inline-flex items-center justify-center rounded-full bg-white/70 px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-status-attention-text)]">
             {total}
           </span>
         </span>
