@@ -1351,7 +1351,13 @@ export function AdminButton({
       className={cn(
         "inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 disabled:pointer-events-none",
         size === "default" && "min-h-10 px-4 text-sm",
-        size === "sm" && "min-h-8 px-3 text-xs",
+        /* ⛔ 44px on a phone, 32px from sm up. `size="sm"` was a flat 32px
+         * everywhere, and it is what the visit-outcome actions on a booking use
+         * — including the destructive one — so the two most consequential
+         * buttons a therapist presses were both well under the 44px touch
+         * minimum. Desktop is unchanged; this is the same `min-h-11 sm:min-h-8`
+         * pattern the booking detail page already uses for its own chips. */
+        size === "sm" && "min-h-11 px-3 text-xs sm:min-h-8",
         variant === "primary" &&
           "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-primary-active)]",
         variant === "secondary" &&
