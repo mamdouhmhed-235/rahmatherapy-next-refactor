@@ -763,8 +763,12 @@ function ParticipantRow({
             ) : null}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {/* ⛔ `muted`, not `info`. The tone map gives `info` a CLOCK icon
+              * (admin-ui.tsx statusIcons), so a client's gender — a fact, not a
+              * status — was rendered as though the booking were pending
+              * something. `muted` is the only tone with no status icon. */}
             <AdminStatusBadge
-              tone="info"
+              tone="muted"
               value={formatLabel(participant.participant_gender)}
               compact
             />
