@@ -556,33 +556,33 @@ function StatusPill({
 }) {
   const styleMap: Record<typeof family, { bg: string; text: string; icon: LucideIcon }> = {
     confirmed: {
-      bg: "var(--status-confirmed-bg)",
-      text: "var(--status-confirmed-text)",
+      bg: "var(--admin-status-confirmed-bg)",
+      text: "var(--admin-status-confirmed-text)",
       icon: CheckCircle2,
     },
     pending: {
-      bg: "var(--status-pending-bg)",
-      text: "var(--status-pending-text)",
+      bg: "var(--admin-status-pending-bg)",
+      text: "var(--admin-status-pending-text)",
       icon: Clock,
     },
     cancelled: {
-      bg: "var(--status-cancelled-bg)",
-      text: "var(--status-cancelled-text)",
+      bg: "var(--admin-status-cancelled-bg)",
+      text: "var(--admin-status-cancelled-text)",
       icon: XCircle,
     },
     completed: {
-      bg: "var(--status-completed-bg)",
-      text: "var(--status-completed-text)",
+      bg: "var(--admin-status-completed-bg)",
+      text: "var(--admin-status-completed-text)",
       icon: CircleCheck,
     },
     attention: {
-      bg: "var(--status-attention-bg)",
-      text: "var(--status-attention-text)",
+      bg: "var(--admin-status-attention-bg)",
+      text: "var(--admin-status-attention-text)",
       icon: Clock,
     },
     restricted: {
-      bg: "var(--status-restricted-bg)",
-      text: "var(--status-restricted-text)",
+      bg: "var(--admin-status-restricted-bg)",
+      text: "var(--admin-status-restricted-text)",
       icon: Lock,
     },
   };
@@ -627,8 +627,8 @@ function ClaimableStrip({
               borderColor: "var(--admin-warning)",
             }
           : {
-              backgroundColor: "var(--status-attention-bg)",
-              borderColor: "var(--status-attention-text)",
+              backgroundColor: "var(--admin-status-attention-bg)",
+              borderColor: "var(--admin-status-attention-text)",
             }
       }
     >
@@ -948,8 +948,8 @@ function RecentClientsCard({
                   aria-hidden="true"
                   className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                   style={{
-                    backgroundColor: "var(--status-confirmed-bg)",
-                    color: "var(--status-confirmed-text)",
+                    backgroundColor: "var(--admin-status-confirmed-bg)",
+                    color: "var(--admin-status-confirmed-text)",
                   }}
                 >
                   {initials || "—"}
@@ -1016,7 +1016,7 @@ function ServiceMixCard({
                   className="h-full rounded-full"
                   style={{
                     width: `${pct}%`,
-                    backgroundColor: "var(--status-confirmed-text)",
+                    backgroundColor: "var(--admin-status-confirmed-text)",
                   }}
                 />
               </div>

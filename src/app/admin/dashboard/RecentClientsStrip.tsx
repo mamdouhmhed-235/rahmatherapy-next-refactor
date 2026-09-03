@@ -71,8 +71,8 @@ export function RecentClientsStrip({ clients }: RecentClientsStripProps) {
                   aria-hidden="true"
                   className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                   style={{
-                    backgroundColor: "var(--status-confirmed-bg)",
-                    color: "var(--status-confirmed-text)",
+                    backgroundColor: "var(--admin-status-confirmed-bg)",
+                    color: "var(--admin-status-confirmed-text)",
                   }}
                 >
                   {pickInitials(client.fullName) || "—"}

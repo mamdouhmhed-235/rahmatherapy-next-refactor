@@ -154,8 +154,8 @@ function NextVisitHero({
       <p
         className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]"
         style={{
-          backgroundColor: "var(--status-confirmed-bg)",
-          color: "var(--status-confirmed-text)",
+          backgroundColor: "var(--admin-status-confirmed-bg)",
+          color: "var(--admin-status-confirmed-text)",
         }}
       >
         <ArrowRight className="size-3.5" aria-hidden="true" />
@@ -409,8 +409,8 @@ function TodayVisitRow({
         aria-hidden="true"
         className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
         style={{
-          backgroundColor: "var(--status-confirmed-bg)",
-          color: "var(--status-confirmed-text)",
+          backgroundColor: "var(--admin-status-confirmed-bg)",
+          color: "var(--admin-status-confirmed-text)",
         }}
       >
         {initials || "—"}
@@ -464,23 +464,23 @@ function StatusPill({
     { bg: string; text: string; icon: LucideIcon }
   > = {
     confirmed: {
-      bg: "var(--status-confirmed-bg)",
-      text: "var(--status-confirmed-text)",
+      bg: "var(--admin-status-confirmed-bg)",
+      text: "var(--admin-status-confirmed-text)",
       icon: CheckCircle2,
     },
     pending: {
-      bg: "var(--status-pending-bg)",
-      text: "var(--status-pending-text)",
+      bg: "var(--admin-status-pending-bg)",
+      text: "var(--admin-status-pending-text)",
       icon: Clock,
     },
     cancelled: {
-      bg: "var(--status-cancelled-bg)",
-      text: "var(--status-cancelled-text)",
+      bg: "var(--admin-status-cancelled-bg)",
+      text: "var(--admin-status-cancelled-text)",
       icon: XCircle,
     },
     completed: {
-      bg: "var(--status-completed-bg)",
-      text: "var(--status-completed-text)",
+      bg: "var(--admin-status-completed-bg)",
+      text: "var(--admin-status-completed-text)",
       icon: CheckCircle2,
     },
   };
@@ -519,7 +519,7 @@ function EmptyDayCard() {
     <section
       aria-labelledby="practitioner-today-empty-heading"
       className="flex min-h-[280px] flex-col items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] p-6 sm:p-8"
-      style={{ backgroundColor: "var(--status-confirmed-bg)" }}
+      style={{ backgroundColor: "var(--admin-status-confirmed-bg)" }}
     >
       <h2 id="practitioner-today-empty-heading" className="sr-only">
         No upcoming visit
