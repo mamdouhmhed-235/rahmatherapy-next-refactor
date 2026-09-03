@@ -271,9 +271,19 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       `${booking.booking_date}T${booking.start_time}` >= nowIso
     );
   });
-  const pastAssignments = typedAssignments.filter(
-    (assignment) => !upcomingAssignments.includes(assignment)
-  );
+  // ⛔ Order by the date each row DISPLAYS. The fetch is ordered by assignment
+  // `created_at` (see the note below and staff-detail-data.ts), so a booking
+  // whose date was later changed sat wherever it was created — the last
+  // "upcoming" row jumped backwards from next week to today. Upcoming reads
+  // forwards (soonest first); past reads backwards (most recent first).
+  const byBookingStart = (a: AssignmentRow, b: AssignmentRow) =>
+    `${a.bookings?.booking_date ?? ""}T${a.bookings?.start_time ?? ""}`.localeCompare(
+      `${b.bookings?.booking_date ?? ""}T${b.bookings?.start_time ?? ""}`
+    );
+  upcomingAssignments.sort(byBookingStart);
+  const pastAssignments = typedAssignments
+    .filter((assignment) => !upcomingAssignments.includes(assignment))
+    .sort((a, b) => byBookingStart(b, a));
   const visiblePastAssignments = pastAssignments.slice(0, 8);
   // C-16 Step 14 (N7) — `assignmentsTotal` is a true head-count over the same
   // `assigned_staff_id` scope as `typedAssignments` (capped at
