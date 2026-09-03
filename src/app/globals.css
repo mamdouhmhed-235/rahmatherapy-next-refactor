@@ -106,6 +106,30 @@ html:not(:has(.admin-shell)) body {
   overflow-x: hidden;
 }
 
+/* ⛔ `truncate` DOES NOT WORK ON A <p> — and this puts it back.
+ *
+ * src/styles/site-parity.css:76-81 declares `p, h1, h2, h3 { text-wrap: balance }`.
+ * That file is imported bare at src/app/layout.tsx:4, so the rule is UNLAYERED,
+ * while Tailwind's `.truncate` lives in `@layer utilities` (line 6 above).
+ * Unlayered declarations beat layered ones no matter the specificity, and
+ * `text-wrap: balance` sets the SAME longhand (`text-wrap-mode`) that
+ * `white-space: nowrap` sets — so `truncate` lost its nowrap on every <p> in the
+ * app. Its `overflow: hidden` half survived, which is why text was sliced
+ * mid-word and `text-overflow: ellipsis` never fired: ellipsis cannot apply to
+ * a wrapped line.
+ *
+ * Measured on one page, one class, one capture:
+ *     p.truncate    -> white-space: normal   (client name cut mid-word, 5 lines)
+ *     span.truncate -> white-space: nowrap   (truncates correctly)
+ *
+ * ⛔ Deliberately narrow. It re-asserts nowrap ONLY for elements that already
+ * asked to be truncated, so `text-wrap: balance` keeps working everywhere else
+ * and no heading changes how it wraps. Scoping the whole site-parity rule
+ * instead would also strip its `margin: 0` and move admin spacing everywhere. */
+:is(p, h1, h2, h3).truncate {
+  text-wrap: nowrap;
+}
+
 /* Admin canvas — soft warm ambient gradient.
  * A peach-tinted radial ellipse at the top centre, decaying to transparent
  * over the warm-ivory canvas. Adds brand-orange ambient warmth without
