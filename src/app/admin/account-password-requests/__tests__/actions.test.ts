@@ -4,6 +4,7 @@ import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   approvePasswordResetRequest,
+  finishApprovalRefresh,
   rejectPasswordResetRequest,
 } from "../actions";
 
@@ -179,11 +180,66 @@ describe("approvePasswordResetRequest — cache tag invalidation", () => {
 
     const result = await approvePasswordResetRequest(approveFormData());
 
-    expect(result).toEqual({ ok: true });
+    // The result carries the one-time link now — see the next two tests for why.
+    expect(result).toMatchObject({ ok: true, emailSent: true, emailError: null });
     expect(sendEmail).toHaveBeenCalledTimes(1);
+
+    // ⛔ CONTRACT INVERTED ON PURPOSE — approve must invalidate NOTHING.
+    //
+    // This used to assert `["audit"]`. Busting that tag re-renders the request list
+    // (password-requests-data.ts caches it with tags [AUDIT, STAFF]); the approved row
+    // then leaves the Pending tab, unmounting ApproveModal and destroying the
+    // one-time link it holds — the only copy that will ever exist. Observed failing
+    // 3/3 in a real browser. Invalidation moved to finishApprovalRefresh(), asserted
+    // below.
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([]);
+  });
+
+  it("finishApprovalRefresh invalidates what approve deliberately left alone", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(reviewer());
+    stubAdminClient();
+
+    await finishApprovalRefresh();
+
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "audit",
     ]);
+  });
+
+  // ⛔ Pins the fix for the ordering bug. Before it, a failed send returned
+  // {ok:false} even though the row had ALREADY been marked approved and the only
+  // valid token had been destroyed — the reviewer saw an error, could not retry
+  // (the row was no longer pending), and the requester was stranded.
+  it("still succeeds, and returns the link, when the email fails", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(reviewer());
+    stubAdminClient();
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Resend timed out"));
+
+    const result = await approvePasswordResetRequest(approveFormData());
+
+    expect(result).toMatchObject({ ok: true, emailSent: false });
+    expect(result).toHaveProperty("resetLinkUrl");
+    if (result.ok) {
+      expect(result.resetLinkUrl).toContain("/admin/password-reset/");
+      expect(result.emailError).toBeTruthy();
+    }
+    // ⛔ Still no invalidation here — see the note in the first test. The audit ROW
+    // is written regardless (that is what matters); only the cache flush is deferred.
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([]);
+  });
+
+  // The link is unrecoverable after this call returns (the row stores a one-way
+  // hash), so the success path must always hand it back.
+  it("returns a usable reset link on the happy path", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(reviewer());
+    stubAdminClient();
+
+    const result = await approvePasswordResetRequest(approveFormData());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.resetLinkUrl).toMatch(/\/admin\/password-reset\/[0-9a-f]{64}$/);
+    }
   });
 
   it("never calls updateTag when the reviewer lacks permission", async () => {
