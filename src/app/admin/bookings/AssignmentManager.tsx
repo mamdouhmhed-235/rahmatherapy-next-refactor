@@ -28,12 +28,18 @@ export function AssignmentManager({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showAll, setShowAll] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const eligibleOnly = useMemo(
     () => candidates.filter((candidate) => candidate.eligible),
     [candidates]
   );
   const visibleCandidates = showAll ? candidates : eligibleOnly;
+
+  // Look the name up from the full candidate list, not the visible one — "Show
+  // all staff" changes what is on screen but not who was just assigned.
+  const candidateNameFor = (staffId: string) =>
+    candidates.find((c) => c.staff.id === staffId)?.staff.name ?? null;
   const hasIneligible = candidates.length > eligibleOnly.length;
 
   function submit(action: "assign" | "unassign", staffId: string) {
@@ -51,10 +57,20 @@ export function AssignmentManager({
           return;
         }
 
+        // ⛔ CLOSE THE SHEET. It used to stay open and merely re-title itself
+        // "Reassign this booking", which reads as "nothing happened" — so people
+        // tapped again, and every tap emails the client and the therapist afresh.
+        setSheetOpen(false);
+
+        // Name the person and say the emails went, because both are real
+        // consequences the reviewer had no way of knowing about.
+        const who = candidateNameFor(staffId);
         toast.success(
           action === "unassign"
             ? "Assignment removed. Anyone eligible can claim it."
-            : "Assignment updated."
+            : who
+            ? `Assigned to ${who}. They and the client have been emailed.`
+            : "Assigned. The therapist and the client have been emailed."
         );
         router.refresh();
         resolve();
@@ -82,6 +98,8 @@ export function AssignmentManager({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <AdminSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
         title={assignedStaffId ? "Reassign this booking" : "Assign a therapist"}
         description={
           assignedStaffId

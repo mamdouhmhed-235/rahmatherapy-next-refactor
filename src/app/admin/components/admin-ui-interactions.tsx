@@ -201,6 +201,8 @@ export function AdminSheet({
   children,
   footer,
   side = "right",
+  open,
+  onOpenChange,
 }: {
   title: string;
   description?: string;
@@ -208,9 +210,21 @@ export function AdminSheet({
   children: React.ReactNode;
   footer?: React.ReactNode;
   side?: "right" | "bottom";
+  /**
+   * Optional. Omit both and the sheet manages itself exactly as before — passing
+   * `open={undefined}` to BaseDialog.Root leaves it uncontrolled, so none of the
+   * other twelve callers change behaviour.
+   *
+   * Pass them when the sheet has to close itself after a successful action. The
+   * assignment sheet needs this: it used to stay open after assigning, merely
+   * re-titling itself "Reassign this booking", which read as "nothing happened"
+   * and invited a second tap — and a second tap sends the client another email.
+   */
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
 }) {
   return (
-    <BaseDialog.Root>
+    <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
       <BaseDialog.Trigger render={trigger} />
       <BaseDialog.Portal>
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 backdrop-blur-sm" />

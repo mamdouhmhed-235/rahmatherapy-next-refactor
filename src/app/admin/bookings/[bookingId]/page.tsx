@@ -1213,6 +1213,7 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   booking_assignment_claimed: "Claimed by therapist",
   booking_assignment_unassigned: "Therapist removed",
   booking_assignment_reassigned: "Reassigned",
+  booking_assignment_assigned: "Therapist assigned",
   booking_assignment_completed: "Visit completed",
   booking_assignment_no_show: "Marked as no-show",
   customer_cancelled: "Cancelled by client",

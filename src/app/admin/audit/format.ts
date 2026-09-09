@@ -43,6 +43,10 @@ const ACTIONS: Record<string, ActionEntry> = {
   booking_assignment_claimed: { phrase: "claimed assignment for booking", family: "bookings_and_assignments", chip: "confirmed" },
   booking_assignment_unassigned: { phrase: "unassigned therapist from booking", family: "bookings_and_assignments", chip: "cancelled" },
   booking_assignment_reassigned: { phrase: "reassigned therapist for booking", family: "bookings_and_assignments", chip: "pending" },
+  // ⚠️ New 2026-09-09. Every first assignment used to be recorded as a
+  // REassignment, which put a change in the audit trail that never happened.
+  // The reassigned entry above still applies when somebody was already on it.
+  booking_assignment_assigned: { phrase: "assigned therapist to booking", family: "bookings_and_assignments", chip: "confirmed" },
   booking_assignment_completed: { phrase: "completed assignment for booking", family: "bookings_and_assignments", chip: "pending" },
   booking_assignment_no_show: { phrase: "marked assignment no-show for booking", family: "bookings_and_assignments", chip: "cancelled" },
   manual_admin_booking_created: { phrase: "created booking", family: "bookings_and_assignments", chip: "confirmed" },

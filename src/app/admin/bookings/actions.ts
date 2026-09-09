@@ -1312,9 +1312,19 @@ export async function updateBookingAssignment(formData: FormData) {
   );
   if (assignmentStatusResult.error) return assignmentStatusResult;
 
+  // ⚠️ "Reassigned" is only true if somebody was already on it. Every FIRST
+  // assignment used to be logged as a reassignment, so anyone reading the history
+  // later saw a change that never happened — a small lie, but in the audit trail,
+  // which is the one place that has to be literal.
+  const wasPreviouslyAssigned = Boolean(beforeState.assigned_staff_id);
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
-    action_type: action === "unassign" ? "booking_assignment_unassigned" : "booking_assignment_reassigned",
+    action_type:
+      action === "unassign"
+        ? "booking_assignment_unassigned"
+        : wasPreviouslyAssigned
+        ? "booking_assignment_reassigned"
+        : "booking_assignment_assigned",
     target_type: "booking_assignments",
     target_id: assignmentId,
     before_state: beforeState,
