@@ -141,7 +141,23 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
       // the login — so the message says what actually happened, and what the admin
       // still has to do. No email is sent by this path, deliberately, so the password
       // has to be handed over in person.
-      toast.success(`${name.trim()} can now sign in. Give them their password.`);
+      // ⛔ SAY THE QUIET PART. New staff are created with `can_take_bookings: false`,
+      // so a therapist who looks fully set up is invisible to the calendar — it
+      // reports "no therapists available" and nothing anywhere explains why. A
+      // reviewer walking the system cold called this the single biggest trap in the
+      // admin.
+      //
+      // ⚠️ Deliberately NOT fixed by flipping the default: that would put a brand-new
+      // person into live booking capacity the instant they are created, which is a
+      // clinic decision, not a UI one. Telling the admin costs nothing and removes
+      // the surprise.
+      const picked = roles.find((r) => r.id === roleId);
+      const takesBookings = /therapist/i.test(picked?.name ?? "");
+      toast.success(
+        takesBookings
+          ? `${name.trim()} can now sign in. Give them their password — and turn on "Can take bookings" on their profile before they show up in the calendar.`
+          : `${name.trim()} can now sign in. Give them their password.`
+      );
       resetForm();
       setOpen(false);
       router.refresh();
@@ -171,11 +187,25 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
           weakness is real and still there; it is reported, not silently patched.
 
           `100dvh` (not `vh`) so the mobile browser's collapsing address bar counts. */}
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+      {/* ⛔ ADMIN TOKENS, NOT THE SITE'S.
+          This is the ONLY dialog in /admin that uses the shared site `DialogContent`
+          — every other one (ApproveModal, RejectModal, BlockedDatesManager, the
+          command palette…) drives BaseDialog directly with `--admin-*` tokens. That
+          made it the odd one out and it showed: `DialogContent` defaults to
+          `bg-card`, a LIGHT surface, while the labels inside use
+          `--admin-heading`, a light-on-dark colour. In the admin's dark theme the
+          panel rendered white with near-invisible labels and a Cancel button that
+          had all but disappeared. Captured in
+          `guide-shots/owner-staff-add-dialog.png`.
+
+          Overriding the surface here is the small fix. ⚠️ The real one is to stop
+          this file using the site component at all — logged in DEFERRED-ISSUES
+          alongside the shared dialog's missing max-height. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)]">
         <form onSubmit={handleSubmit} noValidate className="grid gap-5">
           <DialogHeader>
-            <DialogTitle>Add staff member</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[var(--admin-heading)]">Add staff member</DialogTitle>
+            <DialogDescription className="text-[var(--admin-text-muted)]">
               {/* F4 (2026-08-17): this promised "They'll receive a sign-in
                   invitation by email." Nothing sent one, so the copy was corrected
                   to say sign-in was provisioned separately.
