@@ -203,6 +203,54 @@ then re-check the taller dialogs.
 
 ---
 
+## ADDED 2026-09-09 — found while photographing the admin for the client guide
+
+⛔ **All three are on the SAME step: assigning a therapist.** That step is already the
+weakest link in the daily loop — nothing forces it, the client never sees whether it
+happened, and it is the only step with no deadline. These three make it harder still.
+
+### ⛔ 11. "Assign N unassigned" leads to a list you cannot assign from (~half a day)
+
+The dashboard's most prominent call to action — a blue bar reading *"Assign 3
+unassigned →"* — opens a filtered booking list whose cards offer only **Claim** and
+**Confirm**. There is **no Assign button on any card.** You must open each booking
+individually to do the thing the button just told you to do.
+
+⚠️ **This is the most-used path to the most-missed job**, which is why it is first.
+
+*Fix:* put the assign control on the list card, reusing the picker from the booking
+detail page. ⚠️ The picker filters by gender requirement and by *Can take bookings*, so
+the card version must show the same "why is nobody eligible" reasoning — a silently
+empty dropdown on a list would be worse than the current detour.
+
+### ⚠️ 12. Assigning fires instantly, emails two people, and looks like it failed (~2h)
+
+Tapping a name assigns immediately — **no confirmation step** — and sends emails to
+**both the client and the therapist**. Then the dialog *stays open*, re-titled
+*"Reassign this booking"*.
+
+So the one moment that generates two real emails gives no "are you sure?", and then
+looks as though nothing happened. Both halves push people to tap again.
+
+*Fix:* close the dialog on success and show a confirmation naming who was assigned and
+that they have been emailed. ⚠️ A confirm-before-send step is the safer design but a
+bigger change; closing the dialog and saying what happened fixes the misreading for a
+fraction of the effort.
+
+### 13. The FIRST assignment is recorded as "Reassigned" (~10 min)
+
+Plainly wrong in the audit trail: nothing was re-assigned, it was assigned. Someone
+reading the history later sees a change that never happened.
+
+*Fix:* branch the wording on whether `assigned_staff_id` was previously null.
+
+### ⚠️ Related, already logged: see item 5 — a coordinator can reach `/admin/reports`
+
+Revenue is visible there even though Reports is deliberately absent from their menu.
+⛔ **A decision, not a bug** — but it should be a deliberate one.
+
+---
+
 ## ⚠️ NOT A CODE DEFECT, but worth knowing
 
 **The Next dev server prints server-action arguments to the terminal**, so every
