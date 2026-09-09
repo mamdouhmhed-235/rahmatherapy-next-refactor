@@ -4,6 +4,10 @@ import { useId, useState } from "react";
 import { XCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { setPasswordWithToken } from "../actions";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_TOO_SHORT_MESSAGE,
+} from "@/lib/auth/password-policy";
 import { PasswordResetSubmitButton } from "../PasswordResetSubmitButton";
 
 /**
@@ -32,7 +36,7 @@ const REQUIRED_STAR = (
 );
 
 const ERROR_COPY: Record<string, string> = {
-  short: "Password needs at least 12 characters.",
+  short: PASSWORD_TOO_SHORT_MESSAGE,
   mismatch: "Passwords don't match.",
   email: "Pick something that doesn't include your email address.",
   server: "Something went wrong. Try again in a minute.",
@@ -115,7 +119,7 @@ export function SetNewPassword({
             name="new_password"
             type="password"
             autoComplete="new-password"
-            minLength={12}
+            minLength={MIN_PASSWORD_LENGTH}
             required
             aria-required="true"
             aria-invalid={newFieldError ? "true" : undefined}
@@ -129,7 +133,7 @@ export function SetNewPassword({
             id={newHintId}
             className="text-xs text-[var(--admin-text-muted)]"
           >
-            At least 12 characters.
+            At least {MIN_PASSWORD_LENGTH} characters.
           </p>
           {newFieldError ? (
             <div
