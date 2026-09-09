@@ -20,22 +20,21 @@
   }
   .wrap{max-width:880px;margin:0 auto;padding:0 20px 100px}
 
-  /* ---------- masthead ---------- */
-  header.top{
-    background:linear-gradient(160deg,#22252b,#14161a); color:#fff;
-    padding:52px 20px 44px; margin-bottom:40px;
-  }
+  header.top{background:linear-gradient(160deg,#22252b,#14161a);color:#fff;padding:52px 20px 44px;margin-bottom:38px}
   header.top .inner{max-width:880px;margin:0 auto}
   header.top h1{margin:0 0 10px;font-size:34px;line-height:1.2;letter-spacing:-.02em}
   header.top .sub{margin:0;color:#c9cdd4;font-size:18px;max-width:34em}
   header.top .meta{margin-top:26px;font-size:13px;color:#8f959e}
   .brand{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 18px;font-weight:600}
 
-  /* ---------- contents ---------- */
-  nav.toc{
-    background:var(--card);border:1px solid var(--line);border-radius:14px;
-    padding:22px 26px;margin:0 0 46px;
+  .addr{
+    background:#2c3038;border:1px solid #3d434d;border-radius:12px;
+    padding:16px 20px;margin:26px 0 0;max-width:34em;
   }
+  .addr .lbl{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin:0 0 6px;font-weight:700}
+  .addr .url{font-size:19px;color:#fff;font-weight:650;word-break:break-all;margin:0}
+
+  nav.toc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin:0 0 46px}
   nav.toc h2{margin:0 0 14px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
   nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:34px}
   @media(max-width:600px){nav.toc ol{columns:1}}
@@ -43,12 +42,8 @@
   nav.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent}
   nav.toc a:hover{border-bottom-color:var(--gold)}
 
-  /* ---------- sections ---------- */
   section{margin:0 0 68px;scroll-margin-top:20px}
-  h2.sec{
-    font-size:27px;letter-spacing:-.01em;margin:0 0 6px;padding-top:14px;
-    border-top:3px solid var(--ink);display:inline-block;
-  }
+  h2.sec{font-size:27px;letter-spacing:-.01em;margin:0 0 6px;padding-top:14px;border-top:3px solid var(--ink);display:inline-block}
   .lead{color:var(--ink-soft);font-size:17px;margin:0 0 30px;max-width:38em}
   h3{font-size:20px;margin:38px 0 10px;letter-spacing:-.01em}
   p{margin:0 0 16px;max-width:38em}
@@ -56,86 +51,47 @@
   li{margin:8px 0}
   strong{font-weight:650}
 
-  /* ---------- phone screenshots ---------- */
   .shot{margin:26px 0 30px}
-  .shot img{
-    display:block;width:100%;max-width:310px;height:auto;
-    border-radius:20px;border:1px solid var(--line);
-    box-shadow:0 3px 10px rgba(0,0,0,.09),0 14px 34px rgba(0,0,0,.09);
-    background:#111;
-  }
-  .shot figcaption{
-    margin-top:12px;font-size:14.5px;color:var(--ink-soft);
-    max-width:34em;line-height:1.55;
-  }
+  .shot img{display:block;width:100%;max-width:310px;height:auto;border-radius:20px;border:1px solid var(--line);
+    box-shadow:0 3px 10px rgba(0,0,0,.09),0 14px 34px rgba(0,0,0,.09);background:#111}
+  .shot figcaption{margin-top:12px;font-size:14.5px;color:var(--ink-soft);max-width:34em;line-height:1.55}
   .shot figcaption b{color:var(--ink);font-weight:650}
   .pair{display:flex;flex-wrap:wrap;gap:26px}
   .pair .shot{flex:1 1 250px;margin:26px 0 10px;min-width:0}
   .pair .shot img{max-width:100%}
 
-  /* ---------- callouts ---------- */
-  .note{
-    border-left:4px solid var(--blue);background:var(--blue-soft);
-    padding:14px 18px;margin:22px 0;border-radius:0 10px 10px 0;max-width:38em;
-  }
+  .note{border-left:4px solid var(--blue);background:var(--blue-soft);padding:14px 18px;margin:22px 0;border-radius:0 10px 10px 0;max-width:38em}
   .warn{border-left-color:var(--warn);background:var(--warn-soft)}
   .stop{border-left-color:var(--stop);background:var(--stop-soft)}
   .ok{border-left-color:var(--ok);background:var(--ok-soft)}
-  .note p{margin:0 0 8px}
-  .note p:last-child{margin:0}
-  .note .tag{
-    display:block;font-size:12px;font-weight:700;letter-spacing:.1em;
-    text-transform:uppercase;margin-bottom:6px;color:var(--blue);
-  }
+  .note p{margin:0 0 8px} .note p:last-child{margin:0}
+  .note .tag{display:block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;color:var(--blue)}
   .warn .tag{color:var(--warn)} .stop .tag{color:var(--stop)} .ok .tag{color:var(--ok)}
 
-  /* ---------- steps ---------- */
   ol.steps{list-style:none;padding:0;counter-reset:s;max-width:38em}
-  ol.steps>li{
-    counter-increment:s;position:relative;padding:0 0 0 46px;margin:0 0 20px;
-  }
-  ol.steps>li::before{
-    content:counter(s);position:absolute;left:0;top:-1px;
-    width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;
-    display:grid;place-items:center;font-size:14px;font-weight:700;
-  }
+  ol.steps>li{counter-increment:s;position:relative;padding:0 0 0 46px;margin:0 0 20px}
+  ol.steps>li::before{content:counter(s);position:absolute;left:0;top:-1px;width:30px;height:30px;border-radius:50%;
+    background:var(--ink);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:700}
   ol.steps>li b{display:block;margin-bottom:2px}
 
-  /* ---------- loop ---------- */
-  .loop{
-    display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:24px 0 8px;
-    padding:20px;background:var(--card);border:1px solid var(--line);border-radius:14px;
-  }
-  .loop span{
-    background:var(--gold-soft);border:1px solid #e8d9b4;color:#6d4f14;
-    padding:7px 13px;border-radius:999px;font-size:14.5px;font-weight:600;white-space:nowrap;
-  }
+  .loop{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:24px 0 8px;padding:20px;
+    background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .loop span{background:var(--gold-soft);border:1px solid #e8d9b4;color:#6d4f14;padding:7px 13px;
+    border-radius:999px;font-size:14.5px;font-weight:600;white-space:nowrap}
   .loop i{color:var(--ink-soft);font-style:normal;font-size:15px}
 
-  /* ---------- table ---------- */
-  .tablewrap{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
-  table{border-collapse:collapse;width:100%;min-width:640px;font-size:14.5px}
-  th,td{padding:12px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-  thead th{background:#f3f1ec;font-size:13px;letter-spacing:.03em;position:sticky;top:0}
-  tbody tr:last-child td{border-bottom:none}
-  td.no{color:var(--stop)} td.yes{color:var(--ok)}
-
-  /* ---------- role cards ---------- */
-  .role{
-    background:var(--card);border:1px solid var(--line);border-radius:14px;
-    padding:22px 24px;margin:22px 0;
-  }
+  .role{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin:22px 0}
   .role h3{margin:0 0 4px}
-  .role .who{color:var(--gold);font-weight:650;font-size:14px;margin:0 0 12px}
+  .role .who{color:var(--gold);font-weight:650;font-size:14px;margin:0 0 14px}
+  .can{margin:0 0 4px;padding-left:20px}
+  .can li{margin:5px 0}
+  .cant{color:var(--stop)}
+  .can b{color:var(--ink)}
 
-  footer{
-    border-top:1px solid var(--line);margin-top:70px;padding-top:24px;
-    color:var(--ink-soft);font-size:14px;
-  }
+  footer{border-top:1px solid var(--line);margin-top:70px;padding-top:24px;color:var(--ink-soft);font-size:14px}
   @media print{
     header.top{background:#22252b !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    nav.toc{display:none} section{break-inside:avoid-page}
-    .shot img{box-shadow:none}
+    nav.toc{display:none} section{break-inside:avoid-page} .shot img{box-shadow:none}
   }
 </style>
 </head>
@@ -145,8 +101,12 @@
   <div class="inner">
     <p class="brand">Rahma Therapy</p>
     <h1>How to use your admin</h1>
-    <p class="sub">Everything you need to run the clinic from your phone — in about ten minutes.</p>
-    <p class="meta">Written 9 September 2026 · screenshots taken on a phone · the names and bookings shown are made up for this guide</p>
+    <p class="sub">Everything you need to run the clinic from your phone — in about fifteen minutes.</p>
+    <div class="addr">
+      <p class="lbl">Start here</p>
+      <p class="url">rahmatherapy.uk/admin/login</p>
+    </div>
+    <p class="meta">Written 9 September 2026 · screenshots taken on a phone · the clients and bookings shown are made up for this guide</p>
   </div>
 </header>
 
@@ -160,10 +120,12 @@
     <li><a href="#confirm">Confirming a booking</a></li>
     <li><a href="#assign">Giving the job to a therapist</a></li>
     <li><a href="#finish">Finishing a visit</a></li>
-    <li><a href="#new">Taking a booking yourself</a></li>
+    <li><a href="#changes">Moving, cancelling, no-shows</a></li>
+    <li><a href="#new">Taking a booking over the phone</a></li>
     <li><a href="#enquiries">Enquiries</a></li>
     <li><a href="#clients">Clients</a></li>
     <li><a href="#staff">Adding someone to your team</a></li>
+    <li><a href="#passwords">When someone forgets their password</a></li>
     <li><a href="#roles">The four roles</a></li>
     <li><a href="#settings">Services and hours</a></li>
     <li><a href="#gotchas">Things that catch people out</a></li>
@@ -173,21 +135,29 @@
 <!-- ============================================ -->
 <section id="start">
   <h2 class="sec">1 · Getting in</h2>
-  <p class="lead">One page, one password. Everything else lives behind it.</p>
+  <p class="lead">One address, one password.</p>
+
+  <div class="note">
+    <span class="tag">Bookmark this</span>
+    <p>Your admin lives at <b>rahmatherapy.uk/admin/login</b>. There is <b>no link to it from your normal website</b> — type it in once and save it. It's a staff door only; clients never sign in.</p>
+  </div>
 
   <div class="shot">
     <img src="{{IMG:owner-login}}" alt="The staff sign-in page: email, password, and a Forgot your password link.">
-    <figcaption><b>The sign-in page.</b> Your email and your password. If you forget it, tap <b>Forgot your password?</b> — that sends a request to whoever manages the team, and they approve it.</figcaption>
+    <figcaption><b>Your email and your password.</b> That's all.</figcaption>
   </div>
 
   <div class="shot">
-    <img src="{{IMG:owner-dashboard}}" alt="The dashboard showing today's date, three bookings today, and a Needs your attention panel.">
-    <figcaption><b>This is what you land on.</b> Today's date, how many bookings you have, and anything that needs you. The blue bar pinned to the bottom is the most urgent job of the day.</figcaption>
+    <img src="{{IMG:owner-dashboard}}" alt="The dashboard showing today's date, bookings today, and a Needs your attention panel.">
+    <figcaption><b>This is what you land on.</b> Today's date, how many bookings you have, and anything needing you. The blue bar pinned to the bottom is the most urgent job of the day.</figcaption>
   </div>
 
-  <div class="note">
-    <span class="tag">Worth knowing</span>
-    <p>The bar across the bottom — <b>Dashboard, Bookings, Clients, Enquiries, Staff, More</b> — is how you move around. It's always there.</p>
+  <h3>Finding your way around</h3>
+  <p>The bar across the bottom — <b>Dashboard, Bookings, Clients, Enquiries, Staff, More</b> — never goes away.</p>
+
+  <div class="shot">
+    <img src="{{IMG:owner-more-menu}}" alt="The More menu listing Calendar, Emails, Services, Availability, Reports, Settings, Password requests and Sign out.">
+    <figcaption><b>"More" is the drawer for everything else</b> — Calendar, Emails, Services, Availability, Reports, Settings, Password requests, and <b>Sign out</b> right at the bottom. If you can't find something, it's in here.</figcaption>
   </div>
 </section>
 
@@ -206,7 +176,7 @@
 
   <div class="note stop">
     <span class="tag">The step people forget</span>
-    <p><b>Giving the job to a therapist.</b> Nothing forces you to do it, and the client never sees whether it's been done — they think it's all booked. A confirmed visit with nobody assigned is the failure that actually hurts.</p>
+    <p><b>Giving the job to a therapist.</b> Nothing forces you to do it, and the client never sees whether it's been done — they think it's all arranged. A confirmed visit with nobody assigned is the failure that actually hurts.</p>
   </div>
 
   <h3>Your morning</h3>
@@ -217,8 +187,13 @@
     </div>
     <div class="shot">
       <img src="{{IMG:owner-bookings-today}}" alt="Today's bookings list with times, clients and status.">
-      <figcaption><b>Then Bookings → Today.</b> Who's coming, when, and whether they've been paid or assigned. This list <i>is</i> your day.</figcaption>
+      <figcaption><b>Then Bookings → Today.</b> Who's coming, when, paid or not, assigned or not. This list <i>is</i> your day.</figcaption>
     </div>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Use the Today tab</span>
+    <p>The main bookings list starts with the <b>furthest-away</b> date, so today sits partway down. The <b>Today</b> tab is the one you want each morning.</p>
   </div>
 
   <h3>Your evening</h3>
@@ -228,17 +203,22 @@
 <!-- ============================================ -->
 <section id="confirm">
   <h2 class="sec">3 · Confirming a booking</h2>
-  <p class="lead">A booking from your website arrives as <b>pending</b>. Confirming is what tells the client it's really happening.</p>
+  <p class="lead">A booking from your website arrives as <b>pending</b>. Confirming tells the client it's really happening.</p>
 
   <div class="pair">
     <div class="shot">
       <img src="{{IMG:owner-booking-detail}}" alt="A booking's detail page showing client, time, service and price.">
-      <figcaption><b>Open the booking</b> to see everything about it — who, when, what, where, how much.</figcaption>
+      <figcaption><b>Open the booking</b> — who, when, what, where, how much.</figcaption>
     </div>
     <div class="shot">
       <img src="{{IMG:owner-booking-actions}}" alt="Status and payment panel with Confirm, Mark complete and Cancel actions.">
-      <figcaption><b>Status &amp; payment</b> is where you confirm it, complete it, or cancel it.</figcaption>
+      <figcaption><b>Status &amp; payment</b> is where you confirm, complete or cancel.</figcaption>
     </div>
+  </div>
+
+  <div class="note">
+    <span class="tag">The two little buttons on each booking card</span>
+    <p>The <b>pin</b> opens the address in Maps. The <b>…</b> gives you <b>Send reminder</b>, <b>Mark paid</b> and <b>Cancel booking</b> — the quickest way to nudge someone about tomorrow. On a narrow phone that menu opens half off the edge of the screen. It still works; it just looks wrong.</p>
   </div>
 </section>
 
@@ -248,9 +228,10 @@
   <p class="lead">The step that matters most, and the easiest one to miss.</p>
 
   <ol class="steps">
-    <li><b>Open the booking</b><span>You can't do this from the list — you have to open each booking.</span></li>
-    <li><b>Find the assignment panel</b><span>It shows who's needed and whether anyone's been picked.</span></li>
-    <li><b>Tap a therapist's name</b><span>That's it — it saves straight away.</span></li>
+    <li><b>Open the booking</b><span>You can't do this from the list — the "Assign" bar on your dashboard takes you to a list, but you still have to open each booking.</span></li>
+    <li><b>Scroll right to the bottom</b><span>The page is long — past guidance, dates, payment and notes. <b>Participants</b> tells you whether they need a male or female therapist. <b>Assignment</b> is just below it.</span></li>
+    <li><b>Press "Assign therapist"</b><span>A list slides up from the bottom.</span></li>
+    <li><b>Tap a name</b><span>That's the whole thing. It saves the moment you tap.</span></li>
   </ol>
 
   <div class="pair">
@@ -263,25 +244,26 @@
       <figcaption><b>Choosing.</b> Only therapists who match the client's requirement are offered.</figcaption>
     </div>
     <div class="shot">
-      <img src="{{IMG:owner-assign-after}}" alt="Assignment panel showing the booking assigned to Bilal Ahmed.">
-      <figcaption><b>After.</b> Done — and both the client and the therapist are emailed automatically.</figcaption>
+      <img src="{{IMG:owner-assign-after}}" alt="Assignment panel showing the booking assigned to a therapist.">
+      <figcaption><b>After.</b> Done.</figcaption>
     </div>
   </div>
 
   <div class="note warn">
-    <span class="tag">It saves instantly</span>
-    <p>There's no "are you sure?". The moment you tap a name it's assigned and <b>two emails go out</b>. The box also stays open and changes to <i>"Reassign this booking"</i> — that's normal, not a mistake. It worked.</p>
+    <span class="tag">It happens the instant you tap</span>
+    <p>There is no "are you sure?", and <b>emails go straight out to both the client and the therapist</b>.</p>
+    <p>The box then stays open and changes to <i>"Reassign this booking"</i>. That means <b>it worked</b> — don't tap again.</p>
   </div>
 
   <h3>When nobody can be picked</h3>
   <div class="shot">
     <img src="{{IMG:owner-assign-no-eligible}}" alt="No eligible therapists message, with Show all staff revealing reasons like Bookings disabled and Wrong therapist gender.">
-    <figcaption><b>This screen explains itself — use it.</b> If it says no therapists are available, tap <b>Show all staff</b> and it tells you why for each person: <i>Bookings disabled</i>, or <i>Wrong therapist gender</i>.</figcaption>
+    <figcaption><b>This screen explains itself — use it.</b> Tap <b>Show all staff</b> and it tells you why each person can't take it: <i>Bookings disabled</i>, or <i>Wrong therapist gender</i>.</figcaption>
   </div>
 
   <div class="note stop">
     <span class="tag">The most common cause</span>
-    <p><b>"Bookings disabled."</b> Every new staff member starts switched off. Until you turn on <b>Can take bookings</b> on their profile, they cannot be given any work — and nothing else will tell you.</p>
+    <p><b>"Bookings disabled."</b> Every new staff member starts switched off. Until you turn on <b>Can take bookings</b> on their profile, they can't be given any work — and nothing else will tell you.</p>
   </div>
 </section>
 
@@ -302,29 +284,67 @@
 </section>
 
 <!-- ============================================ -->
+<section id="changes">
+  <h2 class="sec">6 · Moving, cancelling, no-shows</h2>
+  <p class="lead">Home visits change. Here's each one.</p>
+
+  <ul>
+    <li><b>They want to move it.</b> Open the booking → <b>Move appointment</b>. Pick a new day and time. Nothing else changes.</li>
+    <li><b>They cancel.</b> Open the booking → <b>Status &amp; payment</b> → <b>Cancel booking</b>.</li>
+    <li><b>Nobody answered the door.</b> Don't mark it complete — record it as a <b>no-show</b> instead, so your numbers stay honest.</li>
+  </ul>
+</section>
+
+<!-- ============================================ -->
 <section id="new">
-  <h2 class="sec">6 · Taking a booking yourself</h2>
-  <p class="lead">Someone rings up. <b>Bookings → New booking</b>, then four short steps.</p>
+  <h2 class="sec">7 · Taking a booking over the phone</h2>
+  <p class="lead">Someone rings up. <b>Bookings → New booking</b>, then four steps.</p>
 
   <div class="pair">
     <div class="shot">
-      <img src="{{IMG:owner-booking-new-step1}}" alt="Step one of the new booking form, choosing a service.">
-      <figcaption><b>1 · What they want.</b> Pick the service.</figcaption>
+      <img src="{{IMG:owner-booking-new-step1}}" alt="Step one: where the enquiry came from, the person's name and phone number.">
+      <figcaption><b>1 · Who.</b> Their name, phone, and where they came from.</figcaption>
     </div>
     <div class="shot">
-      <img src="{{IMG:owner-booking-new-time}}" alt="Choosing a date and time slot.">
-      <figcaption><b>2 · When.</b> Pick a day and a time.</figcaption>
+      <img src="{{IMG:owner-booking-new-step2}}" alt="Step two: who the treatment is for, their gender, and which package.">
+      <figcaption><b>2 · What.</b> Who it's for, whether they need a male or female therapist, and which package.</figcaption>
+    </div>
+    <div class="shot">
+      <img src="{{IMG:owner-booking-new-step3}}" alt="Step three: postcode and address with suggestions.">
+      <figcaption><b>3 · Where.</b> Postcode and address.</figcaption>
     </div>
     <div class="shot">
       <img src="{{IMG:owner-booking-new-confirm}}" alt="The final review step before creating the booking.">
-      <figcaption><b>3 · Check and create.</b> One last look before it's real.</figcaption>
+      <figcaption><b>4 · Check and create.</b> One last look before it's real.</figcaption>
     </div>
+  </div>
+
+  <div class="note stop">
+    <span class="tag">Two things that will stop you dead</span>
+    <p><b>You must tap one of the suggested addresses.</b> Typing it out and carrying on leaves the form stuck.</p>
+    <p><b>The calendar doesn't appear</b> until postcode, town, client gender <i>and</i> service are all filled in. It looks broken. It's waiting.</p>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Before you press create</span>
+    <p><b>"Send confirmation email to client" is already ticked.</b> If you're just typing up a booking you already agreed, untick it — or you'll email a real person.</p>
+    <p>The <b>consent box</b> next to it is <i>not</i> ticked, and the form won't submit until it is.</p>
+  </div>
+
+  <div class="shot">
+    <img src="{{IMG:owner-booking-new-no-therapist}}" alt="A No therapists available on this date message with an Override this date option.">
+    <figcaption><b>"No therapists available" doesn't mean you're closed.</b> It means nobody who matches — right gender, switched on, working that day — is free. <b>Override this date</b> books it anyway and leaves it for someone to pick up.</figcaption>
+  </div>
+
+  <div class="note">
+    <span class="tag">Repeat bookings</span>
+    <p>Greyed out here. To set up a repeating visit, start from the <b>client's own page</b> instead.</p>
   </div>
 </section>
 
 <!-- ============================================ -->
 <section id="enquiries">
-  <h2 class="sec">7 · Enquiries</h2>
+  <h2 class="sec">8 · Enquiries</h2>
   <p class="lead">Someone asking a question, not booking yet. This is your "ring them back" list.</p>
 
   <div class="pair">
@@ -334,19 +354,19 @@
     </div>
     <div class="shot">
       <img src="{{IMG:owner-enquiry-open}}" alt="An enquiry opened, showing contact details and what they asked about.">
-      <figcaption><b>Opened.</b> When they commit, <b>Convert</b> turns it straight into a booking.</figcaption>
+      <figcaption><b>Opened.</b> When they commit, <b>Convert</b> turns it straight into a booking — no retyping.</figcaption>
     </div>
   </div>
 </section>
 
 <!-- ============================================ -->
 <section id="clients">
-  <h2 class="sec">8 · Clients</h2>
+  <h2 class="sec">9 · Clients</h2>
   <p class="lead">Everyone who's ever booked, and their history.</p>
 
   <div class="pair">
     <div class="shot">
-      <img src="{{IMG:owner-clients-list}}" alt="The clients list.">
+      <img src="{{IMG:owner-clients-list}}" alt="The clients list with selection tick-boxes down the left.">
       <figcaption><b>Everyone.</b> Search by name or phone.</figcaption>
     </div>
     <div class="shot">
@@ -354,102 +374,142 @@
       <figcaption><b>One person.</b> Contact details, address, notes, and every visit they've had.</figcaption>
     </div>
   </div>
+
+  <div class="note warn">
+    <span class="tag">Mind the tick-boxes</span>
+    <p>The small boxes down the left select several clients so you can delete them together. They're easy to catch with your thumb while scrolling. <b>If a bar appears at the bottom of the screen, you've ticked something</b> — untick it.</p>
+  </div>
 </section>
 
 <!-- ============================================ -->
 <section id="staff">
-  <h2 class="sec">9 · Adding someone to your team</h2>
+  <h2 class="sec">10 · Adding someone to your team</h2>
   <p class="lead"><b>Staff → Add staff member.</b> This creates their account and their password in one go.</p>
 
   <div class="shot">
     <img src="{{IMG:owner-staff-add-dialog}}" alt="The Add staff member form with name, email, password, role and gender.">
-    <figcaption><b>Fill in all five.</b> You choose their password and tell them yourself — nothing is emailed. They can change it later from the sign-in page.</figcaption>
+    <figcaption><b>Fill in all five.</b> You choose their password and tell them yourself — nothing is emailed.</figcaption>
   </div>
 
   <div class="note stop">
-    <span class="tag">Do this next, or they can't work</span>
+    <span class="tag">Two things, or it won't work</span>
+    <p><b>The password must be at least 12 characters</b>, or it won't be accepted.</p>
+    <p><b>Their gender isn't paperwork</b> — it decides which clients they can ever be sent to. Many clients ask for a same-gender therapist.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="tag">Then do this, or they can't work</span>
     <p>New staff start with <b>bookings switched off</b>. Open their profile and turn on <b>Can take bookings</b>, or they'll never appear when you try to assign a visit.</p>
   </div>
 
   <div class="pair">
     <div class="shot">
-      <img src="{{IMG:owner-staff-list}}" alt="The staff list showing four team members and their roles.">
+      <img src="{{IMG:owner-staff-list}}" alt="The staff list showing team members and their roles.">
       <figcaption><b>Your team.</b> Everyone, and what they're allowed to do.</figcaption>
     </div>
     <div class="shot">
-      <img src="{{IMG:owner-staff-detail}}" alt="One staff member's profile with their role and settings.">
-      <figcaption><b>One person's profile.</b> Change their role, switch them on or off, set their hours.</figcaption>
+      <img src="{{IMG:owner-staff-detail}}" alt="One staff member's profile showing their role and account switches.">
+      <figcaption><b>Their profile.</b> Role, and the two switches. Their <b>working hours are on the Availability tab</b>, not this one.</figcaption>
     </div>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">The switches save instantly</span>
+    <p><b>Active account</b> and <b>Can take bookings</b> take effect the moment you tap them. The <b>Save profile</b> button above is only for their name and details.</p>
   </div>
 
   <div class="note">
     <span class="tag">When someone leaves</span>
-    <p>Don't delete them — set their role to <b>Inactive / Suspended</b>. That switches off their access but keeps their history intact.</p>
+    <p>Don't delete them — set their role to <b>Inactive / Suspended</b>. That switches off their access and keeps their history.</p>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<section id="passwords">
+  <h2 class="sec">11 · When someone forgets their password</h2>
+  <p class="lead">This one is entirely your job, and it has a time limit.</p>
+
+  <ol class="steps">
+    <li><b>They tap "Forgot your password?"</b><span>Nothing is emailed to them yet. The request comes to you.</span></li>
+    <li><b>You go to More → Password requests</b><span>Every waiting request is listed there.</span></li>
+    <li><b>You press Approve</b><span>They're emailed a one-time link — and the same link is shown on your screen, so you can read it out or message it to them.</span></li>
+    <li><b>They set a new password</b><span>Using that link.</span></li>
+  </ol>
+
+  <div class="note warn">
+    <span class="tag">Approve it the same day</span>
+    <p>The link <b>stops working after 24 hours</b>. After that they have to start again.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="tag">If YOU forget your own password</span>
+    <p>There's nobody above you to approve it. Keep your own sign-in details written down somewhere safe, and if you're ever locked out, contact whoever looks after the website for you.</p>
   </div>
 </section>
 
 <!-- ============================================ -->
 <section id="roles">
-  <h2 class="sec">10 · The four roles</h2>
-  <p class="lead">These aren't the same screen with buttons hidden. Each role is genuinely a different app — give people the smallest one that lets them do their job.</p>
-
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Can they…</th><th>Owner</th><th>Admin</th><th>Coordinator</th><th>Therapist</th></tr></thead>
-      <tbody>
-        <tr><td>See all bookings</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">Only their own</td></tr>
-        <tr><td>See the client list</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No</td></tr>
-        <tr><td>Handle enquiries</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No</td></tr>
-        <tr><td>Add or edit staff</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">View only</td><td class="no">View only</td></tr>
-        <tr><td>Change prices &amp; services</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td></tr>
-        <tr><td>See money</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">Not on their dashboard</td><td class="no">No</td></tr>
-        <tr><td>Change permissions</td><td class="yes">Yes</td><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr>
-      </tbody>
-    </table>
-  </div>
+  <h2 class="sec">12 · The four roles</h2>
+  <p class="lead">Each role sees a different home screen. A therapist's app really is smaller — that's on purpose. Give people the smallest role that lets them do their job.</p>
 
   <div class="role">
     <h3>Owner</h3>
     <p class="who">Give it to: yourself. One person.</p>
-    <p>Everything, including handing out permissions. The only role that can.</p>
+    <ul class="can">
+      <li><b>Everything</b>, including changing what other people are allowed to do.</li>
+      <li>The only role that can change permissions.</li>
+    </ul>
   </div>
 
   <div class="role">
     <h3>Admin / Practice Manager</h3>
     <p class="who">Give it to: a trusted manager who runs things while you're treating.</p>
-    <p>Everything you can do, except changing permissions.</p>
+    <ul class="can">
+      <li>Everything you can do — bookings, clients, staff, prices, money.</li>
+      <li class="cant"><b>Can't</b> change permissions.</li>
+    </ul>
     <div class="shot"><img src="{{IMG:admin-landing}}" alt="The Admin's dashboard, which looks the same as the Owner's."><figcaption>Their dashboard is the same as yours.</figcaption></div>
   </div>
 
   <div class="role">
     <h3>Client Care / Booking Coordinator</h3>
     <p class="who">Give it to: whoever answers the phone and the messages.</p>
-    <p>The safest role that still gets real work done. They handle enquiries, bookings and coverage — but no money on their dashboard, no prices, no settings.</p>
+    <ul class="can">
+      <li>Enquiries, all bookings, all clients — confirm, move and cancel.</li>
+      <li class="cant"><b>Can't</b> change prices, services, opening hours or settings.</li>
+      <li class="cant"><b>Can't</b> add or edit staff — they see a read-only team list.</li>
+    </ul>
+    <div class="note warn">
+      <span class="tag">About money</span>
+      <p>Money is kept off their dashboard — but this isn't a lock. Someone who knows the web address can still reach the reports page. <b>Give this role to someone you'd trust with the numbers anyway.</b></p>
+    </div>
     <div class="pair">
-      <div class="shot"><img src="{{IMG:coordinator-landing}}" alt="The coordinator's console with enquiries and claim queue."><figcaption>A console built around enquiries and coverage.</figcaption></div>
-      <div class="shot"><img src="{{IMG:coordinator-claim-queue-live}}" alt="The claim queue showing work waiting to be picked up."><figcaption><b>Claim queue</b> — visits still waiting for a therapist.</figcaption></div>
+      <div class="shot"><img src="{{IMG:coordinator-landing}}" alt="The coordinator's console with enquiries and coverage."><figcaption>A console built around enquiries and coverage.</figcaption></div>
+      <div class="shot"><img src="{{IMG:coordinator-claim-queue-live}}" alt="The claim queue showing visits still waiting for a therapist."><figcaption><b>Claim queue</b> — visits still waiting for a therapist.</figcaption></div>
     </div>
   </div>
 
   <div class="role">
     <h3>Therapist</h3>
     <p class="who">Give it to: everyone who does visits.</p>
-    <p>The smallest, safest role. They see their own day and nothing else — no client list, no money, no settings.</p>
+    <ul class="can">
+      <li>Their own day, their own visits, and the address and phone number for each.</li>
+      <li>Mark a visit complete, or record a no-show. Add treatment notes.</li>
+      <li class="cant"><b>Can't</b> see the client list, or anyone else's bookings.</li>
+      <li class="cant"><b>Can't</b> move or cancel a visit — they'll ring you.</li>
+      <li class="cant"><b>Can't</b> see whether a visit has been paid for.</li>
+    </ul>
     <div class="pair">
-      <div class="shot"><img src="{{IMG:therapist-my-day-with-visit}}" alt="A therapist's My day screen showing one visit today."><figcaption><b>My day.</b> Their visits, and nothing to distract from them.</figcaption></div>
-      <div class="shot"><img src="{{IMG:therapist-visit-detail}}" alt="A visit opened, showing the client's address, phone and a View on Maps button."><figcaption><b>A visit.</b> Address, tappable phone number, and <b>View on Maps</b> — everything they need at the door.</figcaption></div>
-    </div>
-    <div class="note">
-      <span class="tag">What they can't do</span>
-      <p>They can't move or cancel a visit, and they can't see whether it's been paid. If a client asks to reschedule at the door, they'll ring you.</p>
+      <div class="shot"><img src="{{IMG:therapist-my-day-with-visit}}" alt="A therapist's My day screen showing their visits for today."><figcaption><b>My day.</b> Today&rsquo;s visits at the top &mdash; and below them, <b>Open to claim</b>: work nobody has been given yet that they can pick up themselves.</figcaption></div>
+      <div class="shot"><img src="{{IMG:therapist-visit-detail}}" alt="A visit opened, showing client, address and contact details."><figcaption><b>A visit.</b> The client&rsquo;s <b>phone number</b>, the full address and postcode, and a <b>View on Maps</b> button &mdash; plus whether they need a male or female therapist.</figcaption></div>
     </div>
   </div>
 </section>
 
 <!-- ============================================ -->
 <section id="settings">
-  <h2 class="sec">11 · Services and hours</h2>
-  <p class="lead">The two settings you'll actually touch.</p>
+  <h2 class="sec">13 · Services and hours</h2>
+  <p class="lead">The two settings you'll actually touch. Both live under <b>More</b>.</p>
 
   <div class="pair">
     <div class="shot">
@@ -457,45 +517,65 @@
       <figcaption><b>Services.</b> What you offer, how long it takes, what it costs.</figcaption>
     </div>
     <div class="shot">
-      <img src="{{IMG:owner-availability}}" alt="Opening hours settings.">
-      <figcaption><b>Availability.</b> When the clinic is open, and when each therapist works.</figcaption>
+      <img src="{{IMG:owner-availability}}" alt="The availability overview showing how many male and female therapists are bookable.">
+      <figcaption><b>Availability.</b> The line at the top counts how many <b>male</b> and <b>female</b> therapists can actually be booked.</figcaption>
     </div>
+  </div>
+
+  <div class="note stop">
+    <span class="tag">Check this number first</span>
+    <p>If <b>Female</b> says <b>0</b>, every client who asks for a woman will be told there's no availability — no matter how empty your calendar looks. Same for <b>Male</b>. It's the fastest answer to "why can't anyone book?"</p>
+  </div>
+
+  <div class="shot">
+    <img src="{{IMG:owner-availability-hours}}" alt="The opening hours grid, day by day.">
+    <figcaption><b>Opening hours,</b> day by day. Each therapist can also have their own hours on their profile.</figcaption>
   </div>
 </section>
 
 <!-- ============================================ -->
 <section id="gotchas">
-  <h2 class="sec">12 · Things that catch people out</h2>
-  <p class="lead">The handful of things worth knowing before they confuse you.</p>
+  <h2 class="sec">14 · Things that catch people out</h2>
+  <p class="lead">Worth knowing before they confuse you.</p>
 
   <div class="note stop">
     <span class="tag">1 · New staff can't take work</span>
-    <p>Every new person starts with <b>bookings switched off</b>. Turn on <b>Can take bookings</b> on their profile, or they'll never appear when you assign.</p>
+    <p>Every new person starts with <b>bookings switched off</b>. Turn on <b>Can take bookings</b> on their profile.</p>
+  </div>
+
+  <div class="note stop">
+    <span class="tag">2 · Your own numbers will say zero — and that's right</span>
+    <p>The top block on your dashboard counts only visits assigned to <b>you</b>. If you don't do visits yourself, it stays at zero for ever. <b>The row underneath is the whole clinic</b> — that's the one you want. Check the <b>Team / Mine</b> switch is on <b>Team</b>.</p>
   </div>
 
   <div class="note warn">
-    <span class="tag">2 · "Assign 3 unassigned" doesn't assign</span>
-    <p>That button takes you to a list, but you can't assign from the list — you have to open each booking. Slightly annoying, entirely normal.</p>
+    <span class="tag">3 · The "Assign" bar doesn't assign</span>
+    <p>The blue bar on your dashboard takes you to a list of bookings that need a therapist — but you still have to open each one to assign it. That's how it works.</p>
   </div>
 
   <div class="note warn">
-    <span class="tag">3 · Assigning happens instantly</span>
-    <p>No confirmation, and two emails go out immediately. The box staying open and saying <i>"Reassign"</i> means it worked.</p>
+    <span class="tag">4 · Assigning happens instantly</span>
+    <p>No confirmation, and two emails go out immediately. The box staying open and saying <i>"Reassign"</i> means it worked. See number 8.</p>
   </div>
 
   <div class="note">
-    <span class="tag">4 · "Next visit: nothing scheduled"</span>
+    <span class="tag">5 · "Claimable" means something different for everyone</span>
+    <p>Next to Today and Upcoming, which show the whole clinic, <b>Claimable shows only what the person looking can personally take</b> — their gender, their switch. Two people will see different numbers.</p>
+  </div>
+
+  <div class="note">
+    <span class="tag">6 · "Next visit: nothing scheduled"</span>
     <p>You may see this above a day that clearly has visits. It means nothing is scheduled <i>later today</i> — the ones already past don't count.</p>
   </div>
 
   <div class="note">
-    <span class="tag">5 · Numbers look wrong for a second</span>
+    <span class="tag">7 · Numbers look wrong for a second</span>
     <p>Occasionally the dashboard shows zeros right after signing in. Pull to refresh. It's a loading hiccup, not lost data.</p>
   </div>
 
   <div class="note ok">
-    <span class="tag">6 · You can't really break it</span>
-    <p>Every change is recorded with who did it and when. Nothing you tap deletes a client or a booking without asking you first.</p>
+    <span class="tag">8 · Nothing gets deleted without asking you</span>
+    <p>Every change is recorded with who did it and when, and deletions always confirm first. Some things <i>do</i> happen instantly though — assigning a therapist, and the two switches on a staff profile.</p>
   </div>
 </section>
 
