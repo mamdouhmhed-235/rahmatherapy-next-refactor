@@ -99,11 +99,26 @@ e2e/.auth/
 handoff/
 
 # Audit working artifacts — raw DOM dumps and full-page screenshots from the
-# admin UI audit runs. ~21,000 files / ~38M lines of captured markup.
+# admin UI audit runs. `raw/` alone is 988MB / ~4,500 files, and staging it
+# produced 21,635 files and 38.6 MILLION insertions.
 #
 # ⛔ NEVER COMMIT THESE. This repository is PUBLIC, and the captures include
 # full-page screenshots of /admin/audit — the one screen that still displays
 # deleted clients names, emails, phone numbers and home addresses, because
 # audit rows may never be deleted. They are evidence for a point-in-time
 # review, not source, and they do not belong in a public history.
-redesign/admin-ui-audit/raw/
+#
+# ⚠️ EVERY capture directory, not just `raw/` — there are a dozen (raw-v2,
+# raw-after, raw-therapist-seeded, ...) and they carry the same content.
+redesign/admin-ui-audit/raw*/
+redesign/admin-ui-audit/canary/
+redesign/admin-ui-audit/digest/
+redesign/admin-ui-audit/findings/
+redesign/admin-ui-audit/review/
+redesign/admin-ui-audit/seed/
+redesign/admin-ui-audit/reference/
+
+# Scratch artifacts from audit/verification runs — measurement JSON, crop and
+# mask PNGs, one-off .mjs helpers, per-commit dumps. All `_`-prefixed by
+# convention. Working notes, not source; regenerate them rather than commit them.
+redesign/admin-ui-audit/_*

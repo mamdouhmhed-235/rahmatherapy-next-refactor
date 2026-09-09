@@ -12,44 +12,49 @@ examined and accepted.
 
 ---
 
-## AT GO-LIVE — the one thing that must happen during the deploy
+## ⛔ THE ONE THING STILL OUTSTANDING
 
-### ⛔ G1. Delete every staff account and create fresh ones
+### ⛔ THE OWNER'S PASSWORD IS STILL PUBLISHED AND STILL UNCHANGED
 
-Owner's decision 2026-09-03: **do it as part of going live**, not before.
+> **Supabase → Authentication → Users → `rahmatherapy@outlook.com` → Update password**
 
-Two problems, one action closes both:
+`rahmatherapy@outlook.com` is now the **only** account on the live system and
+holds **all 40 permissions**. Its password sits in **15 files of this PUBLIC
+repository** paired with a working value, and four of those were **downloaded
+anonymously, with no login, on 2026-09-03** to prove it.
 
-1. **A working admin password is in the PUBLIC repository.** Anyone who can read
-   the repo can sign in to the admin. It stays exposed until this is done.
-2. **Five of the six "therapists" are test accounts.** They inflate calendar
-   capacity, so the booking system believes there is more availability than
-   actually exists.
+⛔ **Nothing done since has closed this, and nothing can except the Owner.**
+The account wipe did not. Deleting the files would not — they are in git history
+for ever. It has been open since **2026-05-10**.
 
-⛔ **Owner-only.** It needs credentials that must never pass through an agent.
-Whoever runs the deploy should hand the Owner a step-by-step checklist and then
-verify afterwards that the old accounts are gone and capacity reads correctly.
+⚠️ **Raised at the end of every session since 2026-09-03.** Recorded here so it
+is never mistaken for done.
 
 ---
 
-## READY TO RUN — full account + test-data wipe
+## ✅ COMPLETED — was "AT GO-LIVE / READY TO RUN"
 
-⛔ Plan: `PLAN-account-and-data-reset-FINAL.md` (2026-09-03). v1/v2/v3 are
-superseded and marked as such — they contain errors this one corrects.
+### ✅ G1. Delete every staff account and create fresh ones
 
-**Scope settled by the Owner:** delete ALL 14 clients (including `Mamdouh` and
-`Minhajur Rahman`, confirmed by name), all 14 bookings, 3 enquiries, 84 consent
-events, 4 operational events, 11 staff profiles and 12 logins. Keep only
-`rahmatherapy@outlook.com` and all 318 audit rows.
+**Half done, and the other half no longer needs the Owner.**
 
-⛔ **ONE PREREQUISITE, NOT OPTIONAL:** the Owner must change his own password
-first. The published credential is HIS — 92 tracked files in a public repo — and
-his is the account being kept. Deleting the others does NOT close it.
+✅ **The wipe ran 2026-09-03.** All test accounts and test data deleted; only the
+Owner remains. Plan and full account: `PLAN-account-and-data-reset-FINAL.md`
+(v1/v2/v3 superseded and marked). Reviewed by 6 adversarial agents.
+The five test "therapists" that were inflating calendar capacity are gone.
 
-⛔ Superseded by this: G1 above (staff accounts only) and the old
-`*.example.test` do-not-touch rule, retired by the Owner explicitly.
+✅ **Creating fresh ones is now a website job, not a Supabase one.** Shipped
+2026-09-09 — see `PLAN-staff-logins-in-app.md`. **Admin → Staff → Add staff
+member** takes a password and a role and creates the sign-in account itself.
 
-Reviewed by 6 adversarial agents: 6 blockers, 16 serious, all incorporated.
+⛔ **The old note that this is "Owner-only, credentials must never pass through
+an agent" is retired for account CREATION** — no credential is needed to create
+one any more. It still stands for the Owner's own password, above.
+
+⚠️ **What the Owner still has to do himself:** create the first two accounts.
+Not because the site cannot — because there is nobody but him to press the
+button. After that the site makes its own.
+
 ---
 
 ## OWNER-OWNED, ALREADY DECIDED — do not recommend a fix
@@ -241,9 +246,38 @@ numbers should be read.
 
 ## H. Deployment status
 
+✅ **PUSHED AND LIVE 2026-09-09** — `03e6d83..8f71644c`, **5 commits**: staff
+sign-in accounts creatable from the admin, the approval flow's one-time link
+fixed, the password-reset status page made honest, one shared password rule, and
+this documentation. Live verified **8/8** by
+`node scripts/verify-live-after-deploy.mjs` — banner present (2 markers,
+unchanged), **0 booking-dialog markers**, no 5xx. **0 unpushed.**
+
+State at that push: `tsc` 0 · **3,165 tests pass** across 263 files · lint
+unchanged (6 pre-existing problems, all in booking/home files) · production build
+clean · working tree clean.
+
+⛔ **TWO THINGS THAT NEARLY WENT WRONG — read before the next deploy.**
+
+1. **`git add redesign/admin-ui-audit/` staged 21,635 files and 38.6M
+   insertions**, including full-page screenshots of `/admin/audit` — the one
+   screen that still shows deleted clients' names, emails, phones and home
+   addresses. Into a **PUBLIC** repo. Caught before pushing; the commit was
+   undone and every capture directory is now gitignored (`raw*/`, `canary/`,
+   `digest/`, `findings/`, `review/`, `seed/`, `reference/`, and `_*` scratch).
+   Confirmed **0 capture files reached origin**.
+   ⚠️ **Check what you are staging before you stage it.** A directory add on a
+   working tree is how this happened.
+2. **Two real personal email addresses** in the account-reset plans were masked
+   at the same time. The decision they record is unchanged.
+
+---
+
+### Previous deploy, retained for reference
+
 ✅ **PUSHED AND LIVE 2026-09-03** — `fdeb273..03e6d83`, 70 commits (47 admin
 responsive repair + 23 therapist audit and fix pass). Cloudflare rebuilt
-automatically; the live site verified **8/8 three times, spaced**. **0 unpushed.**
+automatically; the live site verified **8/8 three times, spaced.**
 
 Proof the new build shipped: the served stylesheet contains
 `:is(p,h1,h2,h3).truncate{text-wrap:nowrap}`, a rule committed that day.
