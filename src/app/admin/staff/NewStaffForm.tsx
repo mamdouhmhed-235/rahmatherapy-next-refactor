@@ -12,7 +12,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createStaffProfile } from "./actions";
+import { createStaffProfileWithLogin } from "./actions";
+import {
+  MIN_PASSWORD_LENGTH,
+  PASSWORD_TOO_SHORT_MESSAGE,
+} from "@/lib/auth/password-policy";
 
 interface Role {
   id: string;
@@ -27,7 +31,9 @@ interface NewStaffFormProps {
 
 const EMAIL_REGEX = /.+@.+\..+/;
 
-type FieldErrors = Partial<Record<"name" | "email" | "role_id" | "gender", string>>;
+type FieldErrors = Partial<
+  Record<"name" | "email" | "password" | "role_id" | "gender", string>
+>;
 
 export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
   const router = useRouter();
@@ -35,7 +41,18 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
+  const [password, setPassword] = useState("");
+  // ⛔ Starts EMPTY so the "Pick a role" placeholder is what is actually selected.
+  //
+  // This was `roles[0]?.id ?? ""`, which silently preselected the FIRST role in the
+  // list — **Owner / Main Admin**. An admin who never touched the dropdown created a
+  // second full owner, and the guard below ("Pick a role so they have the right
+  // permissions on day one") could never fire because a role was always set. Harmless
+  // while this form only made a profile; now that it creates a working login, it would
+  // have handed out live owner access by default.
+  //
+  // Gender, immediately below, already behaved this way — the two were inconsistent.
+  const [roleId, setRoleId] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -43,7 +60,8 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
   function resetForm() {
     setName("");
     setEmail("");
-    setRoleId(roles[0]?.id ?? "");
+    setPassword("");
+    setRoleId(""); // ⛔ empty, not roles[0] — see the note on the state declaration
     setGender("");
     setFormError(null);
     setFieldErrors({});
@@ -58,6 +76,14 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
       errors.email = "Add an email so they can sign in.";
     } else if (!EMAIL_REGEX.test(email.trim())) {
       errors.email = "Email needs an @ symbol. For example: name@example.com.";
+    }
+    // ⚠️ Mirrors the server rule only for the person typing. The real check is
+    //    server-side in createStaffProfileWithLogin — both read the same constant,
+    //    so they cannot drift apart.
+    if (!password) {
+      errors.password = "Set a password so they can sign in.";
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      errors.password = PASSWORD_TOO_SHORT_MESSAGE;
     }
     if (!roleId) {
       errors.role_id = "Pick a role so they have the right permissions on day one.";
@@ -80,17 +106,22 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
     }
 
     startTransition(async () => {
-      const result = await createStaffProfile({
+      const result = await createStaffProfileWithLogin({
         name,
         email,
+        password,
         role_id: roleId,
         gender: gender as "male" | "female",
       });
 
       if (result.error) {
-        // Map the common server-side errors to the brief copy.
         const serverError = result.error;
-        const isDuplicate = /already/i.test(serverError);
+        // ⚠️ This test used to be /already/i alone, which never matched: the server
+        //    returned the raw Postgres text "duplicate key value violates unique
+        //    constraint ...", so the friendly copy below was dead code and users saw
+        //    the database internals instead. The server now returns a mapped message,
+        //    and this keeps matching both shapes so neither path can regress.
+        const isDuplicate = /already|duplicate key|unique constraint/i.test(serverError);
         const message = isDuplicate
           ? "Someone with that email is already on the team. Open their profile if you need to update it."
           : serverError;
@@ -102,10 +133,15 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
         return;
       }
 
-      // F4 (2026-08-17): was "Invitation email sent." — the THIRD false promise
-      // in this file, and the one a user is most likely to believe, because it
-      // fires on success. No invitation is sent by anything.
-      toast.success(`${name.trim()} added to the team.`);
+      // F4 (2026-08-17): was "Invitation email sent." — the THIRD false promise in
+      // this file, and the one a user was most likely to believe because it fired on
+      // success. Nothing sent an invitation.
+      //
+      // 2026-09-08: it is now true that they can sign in — the same action creates
+      // the login — so the message says what actually happened, and what the admin
+      // still has to do. No email is sent by this path, deliberately, so the password
+      // has to be handed over in person.
+      toast.success(`${name.trim()} can now sign in. Give them their password.`);
       resetForm();
       setOpen(false);
       router.refresh();
@@ -121,19 +157,35 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
         <UserPlus className="size-4" aria-hidden="true" />
         Add staff member
       </DialogTrigger>
-      <DialogContent>
+      {/* ⛔ max-height + scroll, because this dialog is now too tall for a small phone.
+          At 375×667 it renders ~788px (~894px once a validation error appears), and
+          the shared DialogContent is vertically centred with `body` scroll-locked and
+          no overflow of its own — so the title, the ✕, Cancel and the submit button
+          all sat OUTSIDE the viewport with no way to reach them. Only the phone
+          keyboard's Go key still submitted.
+
+          Adding the password field is what pushed it over the edge, so it is fixed
+          here rather than in the shared component — every other dialog in the admin
+          has the same latent limit, and changing all of them as a side effect of this
+          feature would be a much wider risk than the bug warrants. ⚠️ That shared
+          weakness is real and still there; it is reported, not silently patched.
+
+          `100dvh` (not `vh`) so the mobile browser's collapsing address bar counts. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <form onSubmit={handleSubmit} noValidate className="grid gap-5">
           <DialogHeader>
             <DialogTitle>Add staff member</DialogTitle>
             <DialogDescription>
               {/* F4 (2026-08-17): this promised "They'll receive a sign-in
-                  invitation by email." Nothing sends one — creating a staff
-                  member writes a profile row and no auth account, so the person
-                  could not sign in and the screen said otherwise. Sign-in is
-                  provisioned separately (scripts/bootstrap-owner-admin.mjs).
-                  Making the invitation real is F4 option A, not yet done. */}
-              Create their profile now. Sign-in access is set up separately —
-              they cannot log in until an administrator provisions their account.
+                  invitation by email." Nothing sent one, so the copy was corrected
+                  to say sign-in was provisioned separately.
+
+                  2026-09-08: it no longer IS separate — this form now creates the
+                  sign-in account too. No email is sent, by design, so the copy says
+                  who has to hand the password over. */}
+              This creates their profile and their sign-in account. Nothing is
+              emailed — give them the password yourself, and they can change it
+              later from the sign-in page.
             </DialogDescription>
           </DialogHeader>
 
@@ -175,9 +227,29 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
               required
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
-              hint="Used for booking notifications. Sign-in access is provisioned separately."
+              hint="They sign in with this, and booking notifications go here."
               disabled={isPending}
               error={fieldErrors.email}
+            />
+
+            <FieldLabel htmlFor="staff-password" required>
+              Password
+            </FieldLabel>
+            <FieldInput
+              id="staff-password"
+              name="password"
+              type="password"
+              value={password}
+              required
+              minLength={MIN_PASSWORD_LENGTH}
+              // ⛔ "new-password" stops the browser autofilling the ADMIN's own saved
+              //    credentials into an account being made for someone else.
+              autoComplete="new-password"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              hint="You choose it and tell them. They can change it later via Forgot password."
+              disabled={isPending}
+              error={fieldErrors.password}
             />
 
             <FieldLabel htmlFor="staff-role" required>

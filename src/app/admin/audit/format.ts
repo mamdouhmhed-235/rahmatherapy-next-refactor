@@ -60,6 +60,16 @@ const ACTIONS: Record<string, ActionEntry> = {
 
   // Staff & roles
   staff_member_created: { phrase: "created staff member", family: "staff_and_roles", chip: "confirmed" },
+  // ⚠️ `staff_member_created` above is not what createStaffProfile actually writes —
+  //    it writes `staff_profile_created`. That mismatch meant every staff creation
+  //    fell through to the underscore-stripping fallback, landing in the wrong family
+  //    and staying invisible to the "Staff & roles" filter. Registering the real name
+  //    fixes it; the older entry is kept in case any historical row used it.
+  staff_profile_created: { phrase: "created staff member", family: "staff_and_roles", chip: "confirmed" },
+  // Creating a sign-in account is a security event, not just a staffing one — it is
+  // filed under account_security and marked restricted alongside the password-reset
+  // actions, so it shows up when someone audits who can get in.
+  staff_login_created: { phrase: "created a staff sign-in account", family: "account_security", chip: "restricted" },
   staff_profile_updated: { phrase: "updated staff profile", family: "staff_and_roles", chip: "pending" },
   staff_member_deactivated: { phrase: "deactivated staff member", family: "staff_and_roles", chip: "cancelled" },
   staff_member_reactivated: { phrase: "reactivated staff member", family: "staff_and_roles", chip: "confirmed" },

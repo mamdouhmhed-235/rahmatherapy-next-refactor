@@ -21,6 +21,10 @@ import {
   validateSchedule,
   type DaySchedule,
 } from "@/lib/booking/working-hours-segments";
+import {
+  accountEmailSchema,
+  passwordSchema,
+} from "@/lib/auth/password-policy";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
@@ -190,7 +194,221 @@ export async function getStaffProfiles() {
 }
 
 /**
+ * Create a staff profile AND its sign-in account, in one step.
+ *
+ * ⛔ WHY THIS EXISTS. `createStaffProfile` below makes a person, not a login. Before
+ * this action the only way to finish the job was the Supabase dashboard: create the
+ * auth user by hand, copy its UUID, paste it into `staff_profiles.auth_user_id`.
+ * Miss the paste and the person types the correct password and is bounced to the
+ * login screen for ever. That is not something a non-technical owner should be asked
+ * to get right, so the whole sequence lives here instead.
+ *
+ * ⛔ ORDERING IS THE ENTIRE DESIGN. No transaction can span Supabase Auth (GoTrue)
+ * and Postgres — they are separate services. So the only safety available is: do the
+ * reversible thing first, and undo it by hand if the second step fails.
+ *
+ *   1. permission  →  2. validate  →  3. pre-check the duplicate surfaces
+ *   →  4. create the auth user  →  5. insert the profile WITH auth_user_id
+ *   →  6. if 5 failed, DELETE the auth user from 4  →  7. audit  →  8. revalidate
+ *
+ * ⚠️ Step 6 is the one that matters. Without it a failed step 5 leaves an auth user
+ * with no profile — someone who authenticates successfully and is then rejected by
+ * the app with no explanation, and no signal to anyone that it happened. Step 3
+ * exists so the ordinary "email already used" case never reaches step 4 at all.
+ *
+ * ⚠️ `auth_user_id` is set INSIDE the insert rather than by a follow-up update. One
+ * write instead of two removes a whole failure mode — there is no window in which a
+ * profile exists unlinked.
+ *
+ * ⛔ NO EMAIL IS SENT. Deliberate. The owner types the password and hands it over
+ * directly, so this path cannot be broken by mail configuration. Contrast
+ * `approvePasswordResetRequest`, which must carry a secret it can never show twice.
+ */
+export async function createStaffProfileWithLogin(input: {
+  name: string;
+  email: string;
+  password: string;
+  role_id: string;
+  gender: StaffGender;
+}): Promise<{ error?: string; data?: { id: string } }> {
+  const supabase = await createSupabaseServerClient();
+
+  // 1. Permission — the same pair that gates createStaffProfile. Creating a login is
+  //    strictly more powerful than creating a profile, so it must not be easier.
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_STAFF_PROFILES, supabase);
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+  if (!canAssignStaffRoles(actor)) return { error: "Insufficient permissions." };
+
+  // 2. Validate.
+  const name = input.name.trim();
+  if (!name) return { error: "Name is required." };
+
+  const emailParsed = accountEmailSchema.safeParse(input.email);
+  if (!emailParsed.success) return { error: "Enter a valid email address." };
+  const email = emailParsed.data;
+
+  const passwordParsed = passwordSchema.safeParse(input.password);
+  if (!passwordParsed.success) {
+    return { error: passwordParsed.error.issues[0]?.message ?? "Invalid password." };
+  }
+  const password = passwordParsed.data;
+
+  if (!["male", "female"].includes(input.gender)) {
+    return { error: "Choose a valid gender." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { data: role } = await adminClient
+    .from("roles")
+    .select("id")
+    .eq("id", input.role_id)
+    .eq("active", true)
+    .single();
+
+  if (!role) return { error: "Choose a valid role." };
+
+  // 3. Pre-check for a duplicate before creating anything.
+  //
+  //    ⚠️ There are two uniqueness surfaces and they can disagree:
+  //    `staff_profiles.email` has a unique index, and Supabase Auth separately
+  //    refuses a duplicate address. Checking here means the ordinary case returns a
+  //    readable message instead of a raw Postgres string, and never creates an auth
+  //    user that then has to be deleted again.
+  const { data: existingProfile } = await adminClient
+    .from("staff_profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existingProfile) {
+    return { error: "That email address is already used by another staff member." };
+  }
+
+  // 4. Create the sign-in account.
+  //
+  //    ⛔ `email_confirm: true` is not optional. This project requires confirmation,
+  //    and an unconfirmed account fails sign-in while the login page reports
+  //    "Incorrect email or password" — sending whoever debugs it after a password
+  //    that was correct all along.
+  const { data: created, error: createError } =
+    await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+  if (createError || !created?.user) {
+    const message = createError?.message ?? "";
+    // Auth's own duplicate check — reachable when a login exists with no profile
+    // attached to it, which step 3 cannot see.
+    if (/already|registered|exists/i.test(message)) {
+      return {
+        error:
+          "A sign-in account already exists for that email address. Check Supabase " +
+          "Authentication, or use a different address.",
+      };
+    }
+    return { error: "Could not create the sign-in account. Try again." };
+  }
+
+  const authUserId = created.user.id;
+
+  // 5. Insert the profile, already linked.
+  const { data, error } = await adminClient
+    .from("staff_profiles")
+    .insert({
+      name,
+      email,
+      role_id: input.role_id,
+      gender: input.gender,
+      auth_user_id: authUserId,
+      active: true,
+      can_take_bookings: false,
+      availability_mode: "use_global",
+      created_by: actor.id,
+      updated_by: actor.id,
+    })
+    .select("id")
+    .single();
+
+  // 6. ⛔ COMPENSATE. The profile failed, so the login must not survive it.
+  //
+  //    Without this the account is a silent trap: it authenticates, the app then
+  //    rejects it because no profile matches, and the person is told nothing useful
+  //    while nobody else knows the account exists at all.
+  if (error || !data) {
+    const { error: cleanupError } =
+      await adminClient.auth.admin.deleteUser(authUserId);
+
+    if (cleanupError) {
+      // ⚠️ Both halves failed. Say so precisely — this is the one case that needs a
+      // human in the Supabase dashboard, and hiding it would strand the account.
+      console.error(
+        "createStaffProfileWithLogin: profile insert failed AND auth cleanup failed",
+        {
+          authUserId,
+          insertError: error?.message,
+          cleanupError: cleanupError.message,
+        }
+      );
+      return {
+        error:
+          "The staff member could not be created, and a stray sign-in account was " +
+          `left behind (id ${authUserId}). Delete it in Supabase → Authentication → ` +
+          "Users before trying again.",
+      };
+    }
+
+    if (/duplicate key|unique constraint/i.test(error?.message ?? "")) {
+      return { error: "That email address is already used by another staff member." };
+    }
+    return { error: "Could not create the staff member. Try again." };
+  }
+
+  // 7. Audit.
+  //
+  //    ⛔ NEVER the password, its hash, or its length. The audit screen's redaction
+  //    list does not contain the word "password", so anything stored under such a key
+  //    would be rendered in full to every reviewer.
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "staff_login_created",
+    // ⚠️ "staff", not "staff_profiles", so the row is reachable by the audit screen's
+    //    target filter — see the note on staff_profile_created below.
+    target_type: "staff",
+    target_id: data.id,
+    after_state: {
+      name,
+      email,
+      role_id: input.role_id,
+      gender: input.gender,
+      auth_user_id: authUserId,
+      password_set_by: "admin",
+    },
+  });
+
+  // 8. Revalidate.
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
+  revalidatePath("/admin/staff");
+
+  return { data };
+}
+
+/**
  * Create a staff profile. Auth user linking happens separately through Supabase Auth.
+ *
+ * ⚠️ Prefer `createStaffProfileWithLogin` above for new staff. This action leaves the
+ * person unable to sign in, and no in-app route finishes the job — the "Sign-in
+ * account created" item on their profile stays unticked with nothing behind it. Kept
+ * because existing callers and tests depend on it.
  */
 export async function createStaffProfile(input: {
   name: string;

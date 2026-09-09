@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   createStaffAvailabilityRule,
   createStaffProfile,
+  createStaffProfileWithLogin,
   deleteStaffAvailabilityRule,
   saveStaffAvailabilityDay,
   updateStaffAvailabilityMode,
@@ -468,5 +469,180 @@ describe("saveStaffAvailabilityDay — segments", () => {
 
     expect(result.error).toBe("Insufficient permissions.");
     expect(stub.rpc).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * createStaffProfileWithLogin — the create-the-login-too path.
+ *
+ * These specs exist mainly to pin ONE behaviour: what happens when the profile
+ * insert fails after the auth user has already been created. Without the
+ * compensating delete, that leaves an auth user with no profile — someone who
+ * authenticates successfully and is then silently rejected by the app, with no
+ * signal to them or to anyone else. It is the worst outcome this action can
+ * produce and the only one that cannot be noticed by looking at the staff list.
+ */
+describe("createStaffProfileWithLogin", () => {
+  function stubWithAuth(opts: { insertFails?: boolean; cleanupFails?: boolean } = {}) {
+    const audits: Record<string, unknown>[] = [];
+    const createUser = vi.fn(async () => ({
+      data: { user: { id: "auth-new-1" } },
+      error: null,
+    }));
+    const deleteUser = vi.fn(async () => ({
+      data: null,
+      error: opts.cleanupFails ? { message: "cleanup boom" } : null,
+    }));
+
+    const from = vi.fn((table: string) => {
+      if (table === "audit_logs") {
+        return {
+          insert: vi.fn(async (row: Record<string, unknown>) => {
+            audits.push(row);
+            return { error: null };
+          }),
+        };
+      }
+      if (table === "roles") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ single: async () => ({ data: { id: "role-1" }, error: null }) }),
+            }),
+          }),
+        };
+      }
+      if (table === "staff_profiles") {
+        return {
+          // The duplicate pre-check.
+          select: () => ({
+            eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+          }),
+          insert: () => ({
+            select: () => ({
+              single: async () =>
+                opts.insertFails
+                  ? { data: null, error: { message: "insert boom" } }
+                  : { data: { id: "new-staff-1" }, error: null },
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    return {
+      client: { from, auth: { admin: { createUser, deleteUser } } },
+      audits,
+      createUser,
+      deleteUser,
+    };
+  }
+
+  it("creates the login and the profile, and never sends an email", async () => {
+    const stub = stubWithAuth();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      stub.client as unknown as ReturnType<typeof createSupabaseAdminClient>
+    );
+
+    const result = await createStaffProfileWithLogin({
+      name: "New Person",
+      email: "New.Person@rahmatherapy.example.test",
+      password: "a-long-enough-password",
+      role_id: "role-1",
+      gender: "female",
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual({ id: "new-staff-1" });
+    // email_confirm is not optional — without it the account cannot sign in and the
+    // login page misreports the reason as a wrong password.
+    expect(stub.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email_confirm: true })
+    );
+    // Email is normalised before it reaches either service, so the two cannot
+    // disagree about which address this account belongs to.
+    expect(stub.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "new.person@rahmatherapy.example.test" })
+    );
+    expect(stub.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("⛔ deletes the auth user again when the profile insert fails", async () => {
+    const stub = stubWithAuth({ insertFails: true });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      stub.client as unknown as ReturnType<typeof createSupabaseAdminClient>
+    );
+
+    const result = await createStaffProfileWithLogin({
+      name: "New Person",
+      email: "new@rahmatherapy.example.test",
+      password: "a-long-enough-password",
+      role_id: "role-1",
+      gender: "female",
+    });
+
+    expect(result.error).toBeTruthy();
+    expect(result.data).toBeUndefined();
+    // The whole point: no orphaned login is left behind.
+    expect(stub.deleteUser).toHaveBeenCalledWith("auth-new-1");
+  });
+
+  it("names the stray account when cleanup ALSO fails, so it can be found by hand", async () => {
+    const stub = stubWithAuth({ insertFails: true, cleanupFails: true });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      stub.client as unknown as ReturnType<typeof createSupabaseAdminClient>
+    );
+
+    const result = await createStaffProfileWithLogin({
+      name: "New Person",
+      email: "new@rahmatherapy.example.test",
+      password: "a-long-enough-password",
+      role_id: "role-1",
+      gender: "female",
+    });
+
+    // Both halves failed. Hiding that would strand a working login nobody knows about,
+    // so the id has to reach the person who can delete it.
+    expect(result.error).toContain("auth-new-1");
+  });
+
+  it("rejects a short password before touching either service", async () => {
+    const stub = stubWithAuth();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      stub.client as unknown as ReturnType<typeof createSupabaseAdminClient>
+    );
+
+    const result = await createStaffProfileWithLogin({
+      name: "New Person",
+      email: "new@rahmatherapy.example.test",
+      password: "short",
+      role_id: "role-1",
+      gender: "female",
+    });
+
+    expect(result.error).toContain("12");
+    expect(stub.createUser).not.toHaveBeenCalled();
+  });
+
+  it("never writes the password into the audit trail", async () => {
+    const stub = stubWithAuth();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(
+      stub.client as unknown as ReturnType<typeof createSupabaseAdminClient>
+    );
+
+    await createStaffProfileWithLogin({
+      name: "New Person",
+      email: "new@rahmatherapy.example.test",
+      password: "a-long-enough-password",
+      role_id: "role-1",
+      gender: "female",
+    });
+
+    // ⛔ The audit screen's redaction list does not contain the word "password", so
+    // anything stored under such a key would be rendered in full to every reviewer.
+    const serialised = JSON.stringify(stub.audits);
+    expect(serialised).not.toContain("a-long-enough-password");
+    expect(stub.audits[0]).toMatchObject({ action_type: "staff_login_created" });
   });
 });
