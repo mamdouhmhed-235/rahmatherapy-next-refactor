@@ -10,12 +10,12 @@ import {
   hashResetToken,
   verifyResetToken,
 } from "@/lib/auth/password-reset-token";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const COOKIE_NAME = "rahma_password_reset_request";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 const REQUEST_TTL_HOURS = 24;
-const MIN_PASSWORD_LENGTH = 12;
 
 function maskEmail(email: string): string {
   const trimmed = email.trim().toLowerCase();
@@ -55,13 +55,27 @@ async function findStaffByEmail(email: string) {
   } as const;
 }
 
-async function setRequestCookie(email: string) {
+/**
+ * @param requestId the row this submission created, or a DECOY uuid when no account
+ *   matched.
+ *
+ * ⛔ THE DECOY IS LOad-BEARING, NOT DEFENSIVE PADDING. This whole flow answers
+ * identically whether or not the address is registered — that is what stops someone
+ * discovering who works here by trying addresses. The status page needs an id to look
+ * the request up, so if the cookie carried one ONLY when an account existed, its mere
+ * presence would answer the question the uniform response exists to refuse.
+ *
+ * A decoy id matches no row, so the page falls through to the same "still waiting"
+ * screen a genuine pending request shows. Identical output, no branch to observe.
+ */
+async function setRequestCookie(email: string, requestId: string) {
   const cookieStore = await cookies();
   cookieStore.set({
     name: COOKIE_NAME,
     value: JSON.stringify({
       maskedEmail: maskEmail(email),
       submittedAt: new Date().toISOString(),
+      requestId,
     }),
     httpOnly: true,
     sameSite: "lax",
@@ -102,6 +116,11 @@ export async function submitPasswordResetRequest(
 
   // Uniform response: same cookie + redirect either way. Email enumeration
   // is foreclosed by branching only inside the audit + insert paths below.
+  //
+  // ⚠️ `cookieRequestId` keeps that uniformity: it becomes the real row id when one
+  // was created, and a random decoy otherwise. See setRequestCookie.
+  let cookieRequestId = crypto.randomUUID();
+
   if (match) {
     const now = new Date();
     const expiresAt = new Date(
@@ -121,6 +140,7 @@ export async function submitPasswordResetRequest(
     if (error) {
       console.error("submitPasswordResetRequest insert error:", error);
     } else if (inserted) {
+      cookieRequestId = inserted.id;
       await adminClient.from("audit_logs").insert({
         actor_staff_id: match.staff.id,
         action_type: "password_reset_requested",
@@ -141,7 +161,7 @@ export async function submitPasswordResetRequest(
     updateTag(TAGS.AUDIT);
   }
 
-  await setRequestCookie(email);
+  await setRequestCookie(email, cookieRequestId);
   redirect("/admin/password-reset?state=submitted");
 }
 
