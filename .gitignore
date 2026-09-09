@@ -97,3 +97,13 @@ e2e/.auth/
 
 # Agent handoff notes (local only)
 handoff/
+
+# Audit working artifacts — raw DOM dumps and full-page screenshots from the
+# admin UI audit runs. ~21,000 files / ~38M lines of captured markup.
+#
+# ⛔ NEVER COMMIT THESE. This repository is PUBLIC, and the captures include
+# full-page screenshots of /admin/audit — the one screen that still displays
+# deleted clients names, emails, phone numbers and home addresses, because
+# audit rows may never be deleted. They are evidence for a point-in-time
+# review, not source, and they do not belong in a public history.
+redesign/admin-ui-audit/raw/

@@ -46,21 +46,53 @@ if (!url || !key) {
 }
 
 /**
- * Captured 2026-08-30 at commit 01fbf30, immediately after the production
- * readiness run's write phases finished and every fixture was torn down.
- * Integrity check PASSED at the same moment.
+ * ⛔ REBASELINED 2026-09-03 after the authorised test-data wipe.
+ *
+ * The previous numbers (captured 2026-08-30 at commit 01fbf30) described the
+ * test fixtures that the Owner then instructed be deleted permanently. Every
+ * one of them is now zero, so the old baseline reported 7 mismatches and the
+ * script could no longer do its real job — telling you when something wrote to
+ * data that should not have moved.
+ *
+ * ⛔ THIS IS THE ONE LEGITIMATE REASON TO CHANGE THESE NUMBERS. The header rule
+ * — never edit them to make a mismatch go away — still stands absolutely. It is
+ * being changed here because a deliberate, documented, Owner-approved deletion
+ * moved the real state, and the reason is recorded rather than the evidence
+ * being quietly erased. Full account:
+ * `redesign/admin-ui-audit/PLAN-account-and-data-reset-FINAL.md`.
+ *
+ * What was deleted: 14 clients, 14 bookings and their children, 3 enquiries,
+ * 84 consent_events, 4 operational_events, 38 email_delivery_events,
+ * 11 staff_profiles and 12 auth logins. `audit_logs` was NOT touched — 318
+ * before, 318 after — and 186 of its rows had their author's name written into
+ * `after_state` first, so none of them silently became "System".
+ *
+ * ⚠️ EXPECT staff_profiles TO CHANGE AGAIN, ONCE, SOON. The Owner is creating
+ * two new accounts (one Therapist, one Admin). When they exist:
+ *     staff_profiles: 1  ->  3
+ * That is the ONLY expected movement. Update it then and note the date here.
+ * Anything else moving still means something wrote to data that should not have.
  */
 const EXPECTED = {
   // Clinic data — ⛔ any movement here is real client data changing.
-  clients: 14,
-  bookings: 14,
-  booking_participants: 14,
-  booking_items: 14,
-  booking_assignments: 9,
-  enquiries: 3,
+  // All zero since the 2026-09-03 wipe. The FIRST real customer booking will
+  // move these, which is correct and expected once bookings reopen.
+  clients: 0,
+  bookings: 0,
+  booking_participants: 0,
+  booking_items: 0,
+  booking_assignments: 0,
+  enquiries: 0,
+  // ⚠️ consent_events is NOT listed here on purpose. It holds 84 rows before the
+  // 2026-09-03 wipe and 0 after, but it is not exposed through PostgREST — this
+  // script's HEAD request returns HTTP 403. Adding it produces a permanent
+  // ERROR line, which trains people to ignore a red result. Check it directly
+  // with SQL if you ever need to: `select count(*) from consent_events;`
 
   // Configuration — should only move when someone deliberately changes settings.
-  staff_profiles: 12,
+  // ⚠️ staff_profiles: 1 today (the Owner alone). Becomes 3 when the two new
+  // accounts are created — see the note above.
+  staff_profiles: 1,
   services: 5,
   business_settings: 1,
   availability_rules: 7,
@@ -76,9 +108,11 @@ const EXPECTED = {
   role_permissions: 95,
 
   // Append-only / volatile — these grow in normal use. See the header.
+  // ⛔ audit_logs was deliberately NOT deleted in the 2026-09-03 wipe and must
+  //    never be. 318 is the true figure; a DROP here is a red flag, not drift.
   audit_logs: 318,
-  operational_events: 4,
-  email_delivery_events: 38,
+  operational_events: 0,
+  email_delivery_events: 0,
 };
 
 const VOLATILE = new Set(["audit_logs", "operational_events", "email_delivery_events"]);
